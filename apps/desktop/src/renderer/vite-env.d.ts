@@ -2289,6 +2289,7 @@ interface ElectronAPI {
     setRemoteSessions: (sessions: AgentIslandRemoteSessionInput[]) => Promise<{ ok: true }>;
     setSoundSettings: (settings: AgentIslandSoundSettings) => Promise<{ ok: true }>;
     setMascotSkin: (skin: AgentIslandMascotSkin) => Promise<{ ok: true }>;
+    setAppearance?: (appearance: import('../shared/agentIsland').AgentIslandAppearance) => Promise<{ ok: true }>;
     setSubtleReminders: (enabled: boolean) => Promise<{ ok: true }>;
     setLiveActivity?: (enabled: boolean) => Promise<{ ok: true }>;
     getLiveActivitySupport?: () => Promise<{ ok: true; supported: boolean }>;

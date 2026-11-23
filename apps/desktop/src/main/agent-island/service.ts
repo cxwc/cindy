@@ -41,6 +41,7 @@ import {
   AGENT_ISLAND_SET_DISPLAY_TARGET_CHANNEL,
   AGENT_ISLAND_SET_ENABLED_CHANNEL,
   AGENT_ISLAND_SET_MASCOT_SKIN_CHANNEL,
+  AGENT_ISLAND_SET_APPEARANCE_CHANNEL,
   AGENT_ISLAND_SET_LIVE_ACTIVITY_CHANNEL,
   AGENT_ISLAND_GET_LIVE_ACTIVITY_SUPPORT_CHANNEL,
   AGENT_ISLAND_SET_SUBTLE_REMINDERS_CHANNEL,
@@ -54,6 +55,9 @@ import {
   AGENT_ISLAND_SELECT_SOUND_FILE_CHANNEL,
   DEFAULT_AGENT_ISLAND_DISPLAY_TARGET,
   DEFAULT_AGENT_ISLAND_MASCOT_SKIN,
+  DEFAULT_AGENT_ISLAND_APPEARANCE,
+  isAgentIslandAppearance,
+  sameAgentIslandAppearance,
   cloneAgentIslandDisplayTarget,
   cloneAgentIslandSoundSettings,
   createDefaultAgentIslandDisplayConfig,
@@ -83,6 +87,7 @@ import {
   type AgentIslandSessionSnapshot,
   type AgentIslandDisplayTarget,
   type AgentIslandMascotSkin,
+  type AgentIslandAppearance,
   type AgentIslandStrings,
   type AgentIslandSoundChoice,
   type AgentIslandSoundEvent,
@@ -442,6 +447,7 @@ export class AgentIslandService {
   private nativePreferredDisplayId: number | null = null;
   private soundSettings: AgentIslandSoundSettings = createDefaultAgentIslandDisplayConfig().soundSettings;
   private mascotSkin: AgentIslandMascotSkin = DEFAULT_AGENT_ISLAND_MASCOT_SKIN;
+  private appearance: AgentIslandAppearance = { ...DEFAULT_AGENT_ISLAND_APPEARANCE };
   private quota: AgentIslandQuotaItem[] = [];
   private readonly enabledListeners = new Set<(enabled: boolean) => void>();
   private displayTarget: AgentIslandDisplayTarget = DEFAULT_AGENT_ISLAND_DISPLAY_TARGET;
@@ -768,6 +774,15 @@ export class AgentIslandService {
       return { ok: true };
     });
 
+    ipcMain.handle(AGENT_ISLAND_SET_APPEARANCE_CHANNEL, (event, rawAppearance: unknown) => {
+      assertTrustedAppRendererEvent(event);
+      if (!isAgentIslandAppearance(rawAppearance)) {
+        throwIpcError('INVALID_PARAMS', 'agent island appearance is invalid');
+      }
+      this.setAppearance(rawAppearance);
+      return { ok: true };
+    });
+
     ipcMain.handle(AGENT_ISLAND_SET_DISPLAY_TARGET_CHANNEL, (_event, rawTarget: unknown) => {
       this.setDisplayTarget(normalizeAgentIslandDisplayTarget(rawTarget));
       return { ok: true };
@@ -904,6 +919,16 @@ export class AgentIslandService {
 
   setMascotSkin(skin: AgentIslandMascotSkin): void {
     this.mascotSkin = skin;
+    this.publish();
+  }
+
+  private nativeConfig(): AgentIslandNativeConfig {
+    return { soundSettings: this.soundSettings, mascotSkin: this.mascotSkin, appearance: this.appearance };
+  }
+
+  setAppearance(appearance: AgentIslandAppearance): void {
+    if (sameAgentIslandAppearance(this.appearance, appearance)) return;
+    this.appearance = { ...appearance };
     this.publish();
   }
 
@@ -2305,12 +2330,12 @@ export class AgentIslandService {
     // Sounds follow real runtime transitions. Chat read/visibility filters only own
     // the rendered unread projection and must neither mute a fresh turn nor replay history.
     const soundDisplayState = withAgentIslandConfig(
-      buildAgentIslandDisplayState(this.state, now), this.soundSettings, this.mascotSkin, this.quota,
+      buildAgentIslandDisplayState(this.state, now), this.nativeConfig(), this.quota,
     );
     const chatDisplayState = this.companionChats.size > 0
       ? withAgentIslandConfig(
         buildAgentIslandDisplayState(this.state, now, this.companionChatProjections()),
-        this.soundSettings, this.mascotSkin, this.quota,
+        this.nativeConfig(), this.quota,
       )
       : soundDisplayState;
     // The system Live Activity works whether or not our own island is shown.
@@ -2461,7 +2486,7 @@ export class AgentIslandService {
     const displayState = withAgentIslandConfig(buildHiddenAgentIslandDisplayState({
       now,
       appFocused: this.state.appFocused,
-    }), this.soundSettings, this.mascotSkin);
+    }), this.nativeConfig());
     const update = this.computeNativeDisplayUpdate(displayState);
     if (!this.nativeHost.publish(
       displayState,
@@ -3298,18 +3323,24 @@ function buildHiddenAgentIslandDisplayState(input: {
   };
 }
 
+interface AgentIslandNativeConfig {
+  soundSettings: AgentIslandSoundSettings;
+  mascotSkin: AgentIslandMascotSkin;
+  appearance: AgentIslandAppearance;
+}
+
 function withAgentIslandConfig(
   displayState: AgentIslandDisplayState,
-  soundSettings: AgentIslandSoundSettings,
-  mascotSkin: AgentIslandMascotSkin,
+  config: AgentIslandNativeConfig,
   quota: readonly AgentIslandQuotaItem[] = [],
 ): AgentIslandDisplayState {
   return {
     ...displayState,
     ...(quota.length > 0 ? { quota: [...quota] } : {}),
     strings: buildAgentIslandStrings(),
-    soundSettings: cloneAgentIslandSoundSettings(soundSettings),
-    mascotSkin,
+    soundSettings: cloneAgentIslandSoundSettings(config.soundSettings),
+    mascotSkin: config.mascotSkin,
+    appearance: { ...config.appearance },
   };
 }
 

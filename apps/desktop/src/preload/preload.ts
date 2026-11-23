@@ -102,6 +102,7 @@ import {
   AGENT_ISLAND_SET_DISPLAY_TARGET_CHANNEL,
   AGENT_ISLAND_SET_ENABLED_CHANNEL,
   AGENT_ISLAND_SET_MASCOT_SKIN_CHANNEL,
+  AGENT_ISLAND_SET_APPEARANCE_CHANNEL,
   AGENT_ISLAND_SET_SUBTLE_REMINDERS_CHANNEL,
   AGENT_ISLAND_SET_LIVE_ACTIVITY_CHANNEL,
   AGENT_ISLAND_GET_LIVE_ACTIVITY_SUPPORT_CHANNEL,
@@ -115,6 +116,7 @@ import {
   type AgentIslandDisplayOption,
   type AgentIslandDisplayTarget,
   type AgentIslandMascotSkin,
+  type AgentIslandAppearance,
   type AgentIslandRemoteSessionInput,
   type AgentIslandSessionActivity,
   type AgentIslandSoundChoice,
@@ -2448,6 +2450,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke(AGENT_ISLAND_SET_SOUND_SETTINGS_CHANNEL, settings),
     setMascotSkin: (skin: AgentIslandMascotSkin): Promise<{ ok: true }> =>
       ipcRenderer.invoke(AGENT_ISLAND_SET_MASCOT_SKIN_CHANNEL, skin),
+    /** Silhouette (notch / floating capsule), capsule size and collapsed task title. */
+    setAppearance: (appearance: AgentIslandAppearance): Promise<{ ok: true }> =>
+      ipcRenderer.invoke(AGENT_ISLAND_SET_APPEARANCE_CHANNEL, appearance),
     setSubtleReminders: (enabled: boolean): Promise<{ ok: true }> =>
       ipcRenderer.invoke(AGENT_ISLAND_SET_SUBTLE_REMINDERS_CHANNEL, enabled),
     /** macOS 27.3+: mirror task status as a Live Activity in the system Dynamic Island. */

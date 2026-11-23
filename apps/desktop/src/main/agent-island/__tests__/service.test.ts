@@ -20,6 +20,7 @@ import {
   AGENT_ISLAND_PREVIEW_SOUND_CHANNEL,
   AGENT_ISLAND_SET_DISPLAY_TARGET_CHANNEL,
   AGENT_ISLAND_SET_MASCOT_SKIN_CHANNEL,
+  AGENT_ISLAND_SET_APPEARANCE_CHANNEL,
   AGENT_ISLAND_SET_SUBTLE_REMINDERS_CHANNEL,
   AGENT_ISLAND_SET_REMOTE_SESSIONS_CHANNEL,
   AGENT_ISLAND_SET_COMPANION_CHATS_CHANNEL,
@@ -3386,6 +3387,41 @@ describe('AgentIslandService native publishing', () => {
     await registeredIpcHandler(AGENT_ISLAND_SET_MASCOT_SKIN_CHANNEL)(null, 'tarara');
 
     expect(publish.mock.calls.at(-1)?.[0].mascotSkin).toBe('tarara');
+  });
+
+  // Production entry: the set-appearance IPC handler -> state published to the native helper.
+  // Rule: electron-security §Main re-validates renderer payloads; the helper sizes the island
+  // from these numbers, so an out-of-range or partial value must never reach it.
+  // Minimal failing input: a capsule height outside 20-40pt, or a payload missing a field. Tier: unit.
+  it('validates the appearance setting before publishing it to the native helper', async () => {
+    const { AgentIslandService } = await import('../service.js');
+    const publish = vi.fn((state: AgentIslandDisplayState, frameOrFrames: AgentIslandNativeFrame | AgentIslandNativeFrame[]) => {
+      void state;
+      void frameOrFrames;
+      return true;
+    });
+    const service = new AgentIslandService({
+      getMainWindow: () => null,
+      nativeHost: { failed: false, publish },
+    });
+    syncEnabledForTest(service, publish);
+    service.registerIpc();
+    const setAppearance = registeredIpcHandler(AGENT_ISLAND_SET_APPEARANCE_CHANNEL);
+    const valid = { shapeStyle: 'capsule', capsuleHeight: 36, capsuleTopGap: 4, compactTitleVisible: false };
+
+    for (const invalid of [
+      { ...valid, capsuleHeight: 41 },
+      { ...valid, capsuleTopGap: 2.5 },
+      { ...valid, shapeStyle: 'oval' },
+      { shapeStyle: 'capsule' },
+      null,
+    ]) {
+      expect(() => setAppearance({}, invalid)).toThrow();
+    }
+    expect(publish).not.toHaveBeenCalled();
+
+    await setAppearance({}, valid);
+    expect(publish.mock.calls.at(-1)?.[0].appearance).toEqual(valid);
   });
 
   it('plays configured sounds for task start and completion transitions', async () => {
