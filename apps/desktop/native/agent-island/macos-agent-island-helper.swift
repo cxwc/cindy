@@ -2111,6 +2111,11 @@ struct AgentIslandLayout: Equatable {
   var cornerRadius: CGFloat = 0
   /// Horizontal content inset of the collapsed island's non-notch layouts.
   var compactEndInset: CGFloat = 11
+  /// Collapsed task title and its progress detail are shown (always true when expanded).
+  var compactTitleVisible: Bool = true
+  /// The collapsed width fits just the mascot and count badge, so edge resizing is off;
+  /// the user's saved width is kept and returns once the title is shown again.
+  var compactAutoWidth: Bool = false
 
   var hardwareNotchHidden: Bool {
     hasHardwareNotch && !expanded && width <= notchWidth + 1
@@ -2155,15 +2160,22 @@ struct AgentIslandLayout: Equatable {
       preferredContentWidth: preferredContentWidth,
       compactBadgeWidth: compactBadgeWidth
     )
+    // Room for just the status icon and the count badge.
+    let compactBadgeOnlyWidth = layoutScreenMetrics.hasNotch
+      ? defaultCompactWidth(hasSession: true, screenMetrics: layoutScreenMetrics, compactBadgeWidth: compactBadgeWidth)
+      : compactIslandStatusIconWidth + 14 + 22 + (compactEndInset - 11) * 2
+        + PillBadge.intrinsicWidth(pillSnapshot: state.pillSnapshot, compact: true)
+    let compactTitleVisible = expanded || appearance.compactTitleVisible
+    let compactAutoWidth = !expanded && hasSession && !compactTitleVisible
+    var width = baseWidth
+    // Without a title the island shrinks to fit; a width the user hid in the notch stays hidden.
+    if compactAutoWidth {
+      width = min(baseWidth, compactBadgeOnlyWidth)
+    }
     // A hidden island reveals only enough room for its existing icon and count.
     // Wider user preferences stay unchanged, and the saved width is never rewritten.
-    var width = baseWidth
     if !expanded, state.compactReminder != nil {
-      let minimumReminderWidth = layoutScreenMetrics.hasNotch
-        ? defaultCompactWidth(hasSession: true, screenMetrics: layoutScreenMetrics, compactBadgeWidth: compactBadgeWidth)
-        : compactIslandStatusIconWidth + 14 + 22 + (compactEndInset - 11) * 2
-          + PillBadge.intrinsicWidth(pillSnapshot: state.pillSnapshot, compact: true)
-      width = min(max(baseWidth, minimumReminderWidth), max(1, availableFrameWidth - compactIslandCarrierInset * 2))
+      width = min(max(width, compactBadgeOnlyWidth), max(1, availableFrameWidth - compactIslandCarrierInset * 2))
     }
     // The capsule's top bar is the capsule itself, so expanding grows the panel around it.
     let topBarHeight = capsule ? capsuleHeight : notchBaselineHeight
@@ -2187,7 +2199,9 @@ struct AgentIslandLayout: Equatable {
       capsule: capsule,
       topInset: capsule ? appearance.clampedCapsuleTopGap : 0,
       cornerRadius: capsule ? (expanded ? expandedCapsuleCornerRadius : height / 2) : 0,
-      compactEndInset: compactEndInset
+      compactEndInset: compactEndInset,
+      compactTitleVisible: compactTitleVisible,
+      compactAutoWidth: compactAutoWidth
     )
   }
 
@@ -2635,7 +2649,23 @@ struct CompactSessionView: View {
     }
   }
 
+  @ViewBuilder
   private var regularBody: some View {
+    if layout.compactTitleVisible {
+      titledRegularBody
+    } else {
+      HStack(spacing: 7) {
+        StatusDot(session: session, compact: true, mascotSkin: mascotSkin, runningMascotNamespace: runningMascotNamespace)
+          .frame(width: compactIslandStatusIconWidth, height: compactIslandStatusIconWidth)
+        Spacer(minLength: 0)
+        PillBadge(pillSnapshot: pillSnapshot, compact: true)
+          .fixedSize()
+      }
+      .padding(.horizontal, compactHorizontalPadding)
+    }
+  }
+
+  private var titledRegularBody: some View {
     HStack(spacing: layout.expanded ? 9 : 7) {
       compactTitleLine(showsSubtitle: showsRegularDetail)
         .layoutPriority(2)
@@ -2685,17 +2715,19 @@ struct CompactSessionView: View {
       StatusDot(session: session, compact: true, mascotSkin: mascotSkin, runningMascotNamespace: runningMascotNamespace)
         .frame(width: 18, height: 18)
 
-      compactTextView(
-        compactTitle,
-        fontSize: 10,
-        weight: .semibold,
-        color: sessionIdentityColor(for: session),
-        baseOpacity: session.phase == "running" ? 0.66 : 1
-      )
-        .lineLimit(1)
-        .truncationMode(.tail)
-        .fixedSize(horizontal: true, vertical: false)
-        .opacity(textOpacity)
+      if layout.compactTitleVisible {
+        compactTextView(
+          compactTitle,
+          fontSize: 10,
+          weight: .semibold,
+          color: sessionIdentityColor(for: session),
+          baseOpacity: session.phase == "running" ? 0.66 : 1
+        )
+          .lineLimit(1)
+          .truncationMode(.tail)
+          .fixedSize(horizontal: true, vertical: false)
+          .opacity(textOpacity)
+      }
     }
     .padding(.leading, hardwareNotchSideInset(sideWidth: sideWidth, compactWidth: 18))
     .frame(width: sideWidth, alignment: .leading)
@@ -2705,7 +2737,7 @@ struct CompactSessionView: View {
   private func hardwareNotchTrailingContent(sideWidth: CGFloat) -> some View {
     let textOpacity = hardwareNotchTextOpacity(sideWidth: sideWidth)
     return HStack(spacing: 5) {
-      if !session.subtitle.isEmpty {
+      if layout.compactTitleVisible && !session.subtitle.isEmpty {
         compactTextView(
           session.subtitle,
           fontSize: 9,
@@ -5265,7 +5297,7 @@ final class TrackingView: NSView {
   }
 
   private var isResizable: Bool {
-    state.visible && layout.width > 0
+    state.visible && layout.width > 0 && !layout.compactAutoWidth
   }
 }
 
@@ -6273,7 +6305,7 @@ final class AgentIslandController {
   }
 
   private func isResizable(layout: AgentIslandLayout) -> Bool {
-    model.state.visible && layout.width > 0
+    model.state.visible && layout.width > 0 && !layout.compactAutoWidth
   }
 
   private func visualIslandRect(frame: NSRect, layout: AgentIslandLayout) -> NSRect {
