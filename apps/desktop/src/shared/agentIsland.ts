@@ -243,16 +243,23 @@ export interface AgentIslandAppearance {
   capsuleTopGap: number;
   /** Whether the collapsed island shows the task title and its progress detail. */
   compactTitleVisible: boolean;
+  /**
+   * Empty middle of the collapsed capsule, in points (0 = none). Content moves to both ends
+   * so the capsule can sit around a notch or camera hole; `capsule` only.
+   */
+  capsuleCenterGap: number;
 }
 
-export const AGENT_ISLAND_CAPSULE_HEIGHT_RANGE = { min: 20, max: 40, step: 1 } as const;
-export const AGENT_ISLAND_CAPSULE_TOP_GAP_RANGE = { min: 0, max: 12, step: 1 } as const;
+export const AGENT_ISLAND_CAPSULE_HEIGHT_RANGE = { min: 18, max: 60, step: 1 } as const;
+export const AGENT_ISLAND_CAPSULE_TOP_GAP_RANGE = { min: 0, max: 32, step: 1 } as const;
+export const AGENT_ISLAND_CAPSULE_CENTER_GAP_RANGE = { min: 0, max: 400, step: 1 } as const;
 
 export const DEFAULT_AGENT_ISLAND_APPEARANCE: AgentIslandAppearance = {
   shapeStyle: 'notch',
   capsuleHeight: 32,
   capsuleTopGap: 6,
   compactTitleVisible: true,
+  capsuleCenterGap: 0,
 };
 
 export function isAgentIslandShapeStyle(value: unknown): value is AgentIslandShapeStyle {
@@ -279,6 +286,9 @@ export function pickAgentIslandAppearanceOverrides(value: unknown): Partial<Agen
     overrides.capsuleTopGap = record.capsuleTopGap;
   }
   if (typeof record.compactTitleVisible === 'boolean') overrides.compactTitleVisible = record.compactTitleVisible;
+  if (isInAgentIslandRange(record.capsuleCenterGap, AGENT_ISLAND_CAPSULE_CENTER_GAP_RANGE)) {
+    overrides.capsuleCenterGap = record.capsuleCenterGap;
+  }
   return overrides;
 }
 
@@ -292,7 +302,8 @@ export function sameAgentIslandAppearance(a: AgentIslandAppearance, b: AgentIsla
   return a.shapeStyle === b.shapeStyle
     && a.capsuleHeight === b.capsuleHeight
     && a.capsuleTopGap === b.capsuleTopGap
-    && a.compactTitleVisible === b.compactTitleVisible;
+    && a.compactTitleVisible === b.compactTitleVisible
+    && a.capsuleCenterGap === b.capsuleCenterGap;
 }
 
 export function isAgentIslandSupportedPlatform(

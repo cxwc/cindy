@@ -26,8 +26,8 @@ pnpm --filter desktop preview:island-mascots
 
 另有一个更早的单状态 harness：`XDT_AGENT_ISLAND_DEBUG=idle|compact|completion|interaction`
 （见 `AgentIslandDebugHarness`），用来在真实刘海面板里看整块 UI，与角色预览互补。
-`XDT_AGENT_ISLAND_DEBUG_APPEARANCE=capsule[,高度[,离顶距离[,notitle]]]` 让 harness 用椭圆胶囊外观，
-如 `capsule,36,4`；`notch,notitle` 看刘海样式下隐藏收起标题的效果。
+`XDT_AGENT_ISLAND_DEBUG_APPEARANCE=capsule[,高度[,离顶距离[,中间留空]]][,notitle]` 让 harness 用椭圆胶囊外观，
+如 `capsule,36,4,80`；`notch,notitle` 看刘海样式下隐藏收起标题的效果。
 日志开关是 `XDT_AGENT_ISLAND_DEBUG_LOGS=1`。
 
 ## 胶囊外观（刘海样式 / 椭圆胶囊）
@@ -43,6 +43,9 @@ pnpm --filter desktop preview:island-mascots
 - 刘海屏上椭圆照样从屏幕顶边算离顶距离，与刘海重叠；内容沿用刘海两侧分栏。宽度不超过刘海（藏进刘海）时
   不画底色，免得胶囊下沿从刘海底下露出来。
 - 收起态非刘海排布的左右内边距是 `compactEndInset`（刘海样式恒为 11，椭圆随高度加大）。
+- 椭圆的「中间留空」（`capsuleCenterGap`）复用刘海分栏：收起态各视图按 `layout.usesSplitLayout` / `splitGap` 分栏，
+  刘海屏上 `compactSplitGap` = 刘海宽度（椭圆时取它与留空的较大值），展开态仍只躲真实刘海。留空大于刘海时收起宽度
+  至少为「留空 + 两端内容」，只影响显示，不改写保存的宽度。分栏两端的内边距不小于 `splitEndInset`（椭圆 = `compactEndInset`）。
 
 ## 新增一个角色
 
