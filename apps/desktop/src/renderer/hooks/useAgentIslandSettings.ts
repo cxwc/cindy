@@ -296,6 +296,11 @@ export function getAgentIslandAppearance(): AgentIslandAppearance {
   return { ...DEFAULT_AGENT_ISLAND_APPEARANCE, ...readAgentIslandAppearanceOverrides() };
 }
 
+/** Primitive snapshot for `useSyncExternalStore` (settings search visibility). */
+export function isAgentIslandCapsuleStyle(): boolean {
+  return getAgentIslandAppearance().shapeStyle === 'capsule';
+}
+
 function getAgentIslandSetAppearanceApi():
   | ((appearance: AgentIslandAppearance) => Promise<{ ok: true }>)
   | null {

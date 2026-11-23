@@ -22,7 +22,9 @@ import { Check, ChevronDown, Volume2 } from 'lucide-react';
 import { Tip } from '@/components/ui/tooltip';
 
 import { SettingsBlock, SettingsCard, SettingsField, SettingsRow, SettingsSection } from '@/components/ui/settings-rows';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Select } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
@@ -38,9 +40,12 @@ import pululuPreviewUrl from '@/assets/agent-island-pululu.svg?url';
 import tararaPreviewUrl from '@/assets/agent-island-tarara.png?url';
 import whitesnowPreviewUrl from '@/assets/agent-island-whitesnow.png?url';
 import {
+  AGENT_ISLAND_CAPSULE_HEIGHT_RANGE,
+  AGENT_ISLAND_CAPSULE_TOP_GAP_RANGE,
   AGENT_ISLAND_MASCOT_SKINS,
   AGENT_ISLAND_SOUND_EVENTS,
   AGENT_ISLAND_SOUND_OPTIONS,
+  type AgentIslandAppearance,
   type AgentIslandDisplayTarget,
   type AgentIslandMascotSkin,
   type AgentIslandSoundChoice,
@@ -182,6 +187,8 @@ export function AgentIslandSection() {
     soundSettings,
     soundCustomized,
     mascotSkin,
+    appearance,
+    setAppearance,
     displayTarget,
     displayOptions,
     setSoundEnabled,
@@ -211,6 +218,9 @@ export function AgentIslandSection() {
     } finally {
       setSubtleRemindersPending(false);
     }
+  };
+  const handleAppearanceChange = async (patch: Partial<AgentIslandAppearance>) => {
+    if (!await setAppearance(patch)) toast.error(t('settings.agentIsland.appearanceFailed'));
   };
   const [liveActivityPending, setLiveActivityPending] = useState(false);
   const handleLiveActivityChange = async (next: boolean) => {
@@ -366,6 +376,48 @@ export function AgentIslandSection() {
                   ]}
                 />
               </SettingsField>
+              <SettingsField
+                title={<span id={agentIslandSettings.appearanceStyleLabel.targetId}>{t(agentIslandSettings.appearanceStyleLabel.titleKey)}</span>}
+                hint={t(agentIslandSettings.appearanceStyleLabel.descriptionKey)}
+              >
+                <SegmentedControl data-setting-id={agentIslandSettings.appearanceStyleLabel.id}
+                  aria-label={t(agentIslandSettings.appearanceStyleLabel.titleKey)}
+                  value={appearance.shapeStyle}
+                  onValueChange={(shapeStyle) => void handleAppearanceChange({ shapeStyle })}
+                  options={agentIslandSettings.appearanceStyleLabel.options.map(({ value, labelKey }) => ({ value, label: t(labelKey) }))}
+                />
+              </SettingsField>
+              {appearance.shapeStyle === 'capsule' && (
+                <>
+                  <AgentIslandCapsuleSlider
+                    title={<span id={agentIslandSettings.capsuleHeightLabel.targetId}>{t(agentIslandSettings.capsuleHeightLabel.titleKey)}</span>}
+                    settingId={agentIslandSettings.capsuleHeightLabel.id}
+                    label={t(agentIslandSettings.capsuleHeightLabel.titleKey)}
+                    range={AGENT_ISLAND_CAPSULE_HEIGHT_RANGE}
+                    value={appearance.capsuleHeight}
+                    onCommit={(capsuleHeight) => void handleAppearanceChange({ capsuleHeight })}
+                  />
+                  <AgentIslandCapsuleSlider
+                    title={<span id={agentIslandSettings.capsuleTopGapLabel.targetId}>{t(agentIslandSettings.capsuleTopGapLabel.titleKey)}</span>}
+                    settingId={agentIslandSettings.capsuleTopGapLabel.id}
+                    label={t(agentIslandSettings.capsuleTopGapLabel.titleKey)}
+                    range={AGENT_ISLAND_CAPSULE_TOP_GAP_RANGE}
+                    value={appearance.capsuleTopGap}
+                    onCommit={(capsuleTopGap) => void handleAppearanceChange({ capsuleTopGap })}
+                  />
+                </>
+              )}
+              <SettingsRow
+                title={<span id={agentIslandSettings.compactTitleLabel.targetId}>{t(agentIslandSettings.compactTitleLabel.titleKey)}</span>}
+                hint={t(agentIslandSettings.compactTitleLabel.descriptionKey)}
+                trailing={
+                  <Switch data-setting-id={agentIslandSettings.compactTitleLabel.id}
+                    checked={appearance.compactTitleVisible}
+                    onCheckedChange={(compactTitleVisible) => void handleAppearanceChange({ compactTitleVisible })}
+                    aria-label={t(agentIslandSettings.compactTitleLabel.titleKey)}
+                  />
+                }
+              />
             </>
           )}
         </SettingsCard>
@@ -802,5 +854,51 @@ function AgentIslandSoundRow({
         </button>
       </Tip>
     </div>
+  );
+}
+
+/**
+ * Capsule size slider. The number follows the drag; the setting is saved once on release,
+ * so a drag costs one write and one native relayout instead of one per step.
+ */
+function AgentIslandCapsuleSlider({
+  title,
+  settingId,
+  label,
+  range,
+  value,
+  onCommit,
+}: {
+  title: ReactNode;
+  settingId: string;
+  label: string;
+  range: { min: number; max: number; step: number };
+  value: number;
+  onCommit: (value: number) => void;
+}) {
+  const { t } = useTranslation();
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  return (
+    <SettingsField title={title}>
+      <div className="flex items-center gap-3">
+        <Slider data-setting-id={settingId}
+          min={range.min}
+          max={range.max}
+          step={range.step}
+          value={[draft]}
+          onValueChange={([next]) => {
+            if (typeof next === 'number') setDraft(next);
+          }}
+          onValueCommit={([next]) => {
+            if (typeof next === 'number' && next !== value) onCommit(next);
+          }}
+          aria-label={label}
+        />
+        <span className="w-12 shrink-0 text-right text-13 tabular-nums text-[var(--text-secondary)]">
+          {t('settings.agentIsland.capsuleSizeValue', { value: draft })}
+        </span>
+      </div>
+    </SettingsField>
   );
 }
