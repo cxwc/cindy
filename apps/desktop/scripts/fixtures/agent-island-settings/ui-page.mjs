@@ -7,9 +7,24 @@ export default {
   cases: {
     default: { about: 'Existing automatic cards remain the default' },
     subtle: { about: 'Subtle reminders enabled' },
-    capsule: { about: 'Floating capsule style: three size sliders share one row' },
+    capsule: { about: 'Floating capsule with legacy settings and two vertical size sliders' },
   },
   async check(page, ui) {
+    if (ui.case === 'capsule') {
+      const sliders = page.getByRole('slider');
+      const height = page.getByRole('slider', { name: await ui.t('settings.agentIsland.capsuleHeightLabel'), exact: true });
+      const topGap = page.getByRole('slider', { name: await ui.t('settings.agentIsland.capsuleTopGapLabel'), exact: true });
+      if (await sliders.count() !== 2) throw new Error('Expected only the two vertical size sliders');
+      if (await height.getAttribute('aria-valuenow') !== '35' || await topGap.getAttribute('aria-valuenow') !== '8') {
+        throw new Error('Saved capsule height and top gap were not restored');
+      }
+      await height.press('ArrowRight');
+      await page.waitForFunction(() => {
+        const saved = JSON.parse(localStorage.getItem('notifications.agentIslandAppearance') ?? '{}');
+        return saved.shapeStyle === 'capsule' && saved.capsuleHeight === 36 && saved.capsuleTopGap === 8
+          && !Object.hasOwn(saved, 'capsuleCenterGap');
+      });
+    }
     const toggle = page.getByRole('switch', { name: await ui.t('settings.agentIsland.subtleRemindersLabel'), exact: true });
     const before = await toggle.getAttribute('aria-checked');
     await toggle.click();

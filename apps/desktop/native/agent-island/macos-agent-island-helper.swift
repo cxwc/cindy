@@ -1495,8 +1495,6 @@ struct AgentIslandAppearance: Codable, Equatable {
   let capsuleHeight: Double
   let capsuleTopGap: Double
   let compactTitleVisible: Bool
-  /// Empty middle of the collapsed capsule; absent from hosts that predate it.
-  var capsuleCenterGap: Double? = nil
 
   static let fallback = AgentIslandAppearance(
     shapeStyle: "notch",
@@ -1510,10 +1508,6 @@ struct AgentIslandAppearance: Codable, Equatable {
   /// Main validates the range; clamp again so a malformed line can never size the panel.
   var clampedCapsuleHeight: CGFloat { CGFloat(min(60, max(18, capsuleHeight.isFinite ? capsuleHeight : 32))) }
   var clampedCapsuleTopGap: CGFloat { CGFloat(min(32, max(0, capsuleTopGap.isFinite ? capsuleTopGap : 6))) }
-  var clampedCapsuleCenterGap: CGFloat {
-    guard let gap = capsuleCenterGap, gap.isFinite else { return 0 }
-    return CGFloat(min(400, max(0, gap)))
-  }
 }
 
 struct AgentIslandDisplayState: Codable {
@@ -1664,6 +1658,8 @@ private let expandedIslandCenterSnapDistance: CGFloat = 30
 private let expandedIslandLayoutEmitInterval: TimeInterval = 0.033
 private let hardwareNotchTextRevealStartSideWidth: CGFloat = 44
 private let hardwareNotchTextRevealDistance: CGFloat = 38
+private let compactCapsuleMinSplitGap: CGFloat = 7
+private let compactCapsulePreferredSideWidth: CGFloat = 110
 // Upper bound of `hardwareNotchSideInset`, i.e. the trailing gap the notch layout keeps
 // beside the count badge. Reserving this much guarantees the badge is never clipped at
 // the default compact width.
@@ -2122,9 +2118,8 @@ struct AgentIslandLayout: Equatable {
   /// The collapsed width fits just the mascot and count badge, so edge resizing is off;
   /// the user's saved width is kept and returns once the title is shown again.
   var compactAutoWidth: Bool = false
-  /// Empty middle of the collapsed island: the hardware notch, widened by the capsule's
-  /// center gap setting. 0 lays the collapsed content out in one row.
   var compactSplitGap: CGFloat = 0
+  var splitEndInset: CGFloat = 0
 
   /// Width kept empty between the two content sides: the collapsed split gap, or the hardware
   /// notch the expanded top bar avoids.
@@ -2133,10 +2128,7 @@ struct AgentIslandLayout: Equatable {
   }
 
   var usesSplitLayout: Bool { splitGap > 0 }
-
-  /// Smallest end inset of the split layout: a capsule's semicircular ends need more room
-  /// as it grows; the notch silhouette keeps its own insets.
-  var splitEndInset: CGFloat { capsule ? compactEndInset : 0 }
+  var splitSideWidth: CGFloat { max(0, (width - splitGap) / 2) }
 
   var hardwareNotchHidden: Bool {
     hasHardwareNotch && !expanded && width <= notchWidth + 1
@@ -2168,9 +2160,7 @@ struct AgentIslandLayout: Equatable {
     let layoutScreenMetrics = hardwareNotchLayoutEnabled
       ? screenMetrics
       : screenMetrics.disablingHardwareNotchLayout()
-    // Only the compact hardware-notch layout reserves room for the badge; every other
-    // layout tick skips the reservation entirely and passes 0.
-    let compactBadgeWidth = !expanded && layoutScreenMetrics.hasNotch && hasSession
+    let compactBadgeWidth = !expanded && (hasSession || state.compactReminder != nil)
       ? PillBadge.intrinsicWidth(pillSnapshot: state.pillSnapshot, compact: true)
       : 0
     let baseWidth = computeWidth(
@@ -2181,11 +2171,17 @@ struct AgentIslandLayout: Equatable {
       preferredContentWidth: preferredContentWidth,
       compactBadgeWidth: compactBadgeWidth
     )
-    // Room for just the status icon and the count badge.
-    let compactBadgeOnlyWidth = layoutScreenMetrics.hasNotch
-      ? defaultCompactWidth(hasSession: true, screenMetrics: layoutScreenMetrics, compactBadgeWidth: compactBadgeWidth)
-      : compactIslandStatusIconWidth + 14 + 22 + (compactEndInset - 11) * 2
-        + PillBadge.intrinsicWidth(pillSnapshot: state.pillSnapshot, compact: true)
+    let compactEndItemWidth = max(compactIslandStatusIconWidth, compactBadgeWidth)
+    let compactBadgeOnlyWidth: CGFloat
+    if layoutScreenMetrics.hasNotch {
+      compactBadgeOnlyWidth = defaultCompactWidth(
+        hasSession: true, screenMetrics: layoutScreenMetrics, compactBadgeWidth: compactBadgeWidth
+      )
+    } else if capsule {
+      compactBadgeOnlyWidth = (compactEndItemWidth + compactEndInset) * 2 + compactCapsuleMinSplitGap
+    } else {
+      compactBadgeOnlyWidth = compactIslandStatusIconWidth + 14 + 22 + compactBadgeWidth
+    }
     let compactTitleVisible = expanded || appearance.compactTitleVisible
     let compactAutoWidth = !expanded && hasSession && !compactTitleVisible
     var width = baseWidth
@@ -2198,26 +2194,15 @@ struct AgentIslandLayout: Equatable {
     if !expanded, state.compactReminder != nil {
       width = min(max(width, compactBadgeOnlyWidth), max(1, availableFrameWidth - compactIslandCarrierInset * 2))
     }
-    let hardwareNotchWidth = CGFloat(layoutScreenMetrics.notchWidth)
-    let compactSplitGap: CGFloat
-    if expanded {
-      compactSplitGap = 0
-    } else if layoutScreenMetrics.hasNotch {
-      compactSplitGap = capsule ? max(hardwareNotchWidth, appearance.clampedCapsuleCenterGap) : hardwareNotchWidth
-    } else {
-      compactSplitGap = capsule ? appearance.clampedCapsuleCenterGap : 0
-    }
-    // The gap must never swallow the content: keep room for both sides around it. Like the
-    // reminder width, this only changes what is shown, never the saved width.
-    let hiddenInNotch = layoutScreenMetrics.hasNotch && width <= hardwareNotchWidth + 1
-    let gapExceedsNotch = compactSplitGap > (layoutScreenMetrics.hasNotch ? hardwareNotchWidth : 0)
-    if capsule, !expanded, gapExceedsNotch, !hiddenInNotch {
-      let sideWidth = max(
-        AgentIslandScreenMetricsConfig.compactHardwareIdleExtraWidth / 2,
-        hardwareNotchBadgeSideWidth(compactBadgeWidth: PillBadge.intrinsicWidth(pillSnapshot: state.pillSnapshot, compact: true))
-      ) + max(0, compactEndInset - hardwareNotchBadgeReservedInset)
-      width = min(max(width, compactSplitGap + sideWidth * 2), max(1, availableFrameWidth - compactIslandCarrierInset * 2))
-    }
+    let notchGap = layoutScreenMetrics.hasNotch ? CGFloat(layoutScreenMetrics.notchWidth) : 0
+    let capsuleSideWidth = max(
+      compactEndItemWidth + compactEndInset,
+      min(width * 3 / 8, compactCapsulePreferredSideWidth)
+    )
+    let capsuleGap = capsule ? max(compactCapsuleMinSplitGap, width - capsuleSideWidth * 2) : 0
+    let compactSplitGap = expanded ? 0 : max(notchGap, capsuleGap)
+    let compactSplitSideWidth = (width - compactSplitGap) / 2
+    let compactSplitEndInset = min(compactEndInset, max(hardwareNotchMinimumSideInset, compactSplitSideWidth - compactEndItemWidth))
     // The capsule's top bar is the capsule itself, so expanding grows the panel around it.
     let topBarHeight = capsule ? capsuleHeight : notchBaselineHeight
     let height = computeHeight(state: state, expanded: expanded, notchBaselineHeight: topBarHeight)
@@ -2243,7 +2228,8 @@ struct AgentIslandLayout: Equatable {
       compactEndInset: compactEndInset,
       compactTitleVisible: compactTitleVisible,
       compactAutoWidth: compactAutoWidth,
-      compactSplitGap: compactSplitGap
+      compactSplitGap: compactSplitGap,
+      splitEndInset: capsule ? (expanded ? compactEndInset : compactSplitEndInset) : 0
     )
   }
 
@@ -2741,7 +2727,7 @@ struct CompactSessionView: View {
   }
 
   private var hardwareNotchBody: some View {
-    let sideWidth = max(32, (layout.width - layout.splitGap) / 2)
+    let sideWidth = layout.capsule ? layout.splitSideWidth : max(32, layout.splitSideWidth)
     return HStack(spacing: 0) {
       hardwareNotchLeadingContent(sideWidth: sideWidth)
 
@@ -2771,13 +2757,15 @@ struct CompactSessionView: View {
           .opacity(textOpacity)
       }
     }
-    .padding(.leading, max(layout.splitEndInset, hardwareNotchSideInset(sideWidth: sideWidth, compactWidth: 18)))
+    .padding(.leading, layout.capsule ? layout.splitEndInset : hardwareNotchSideInset(sideWidth: sideWidth, compactWidth: 18))
     .frame(width: sideWidth, alignment: .leading)
     .clipped()
   }
 
   private func hardwareNotchTrailingContent(sideWidth: CGFloat) -> some View {
     let textOpacity = hardwareNotchTextOpacity(sideWidth: sideWidth)
+    let badgeFits = !layout.capsule
+      || PillBadge.intrinsicWidth(pillSnapshot: pillSnapshot, compact: true) + layout.splitEndInset <= sideWidth
     return HStack(spacing: 5) {
       if layout.compactTitleVisible && !session.subtitle.isEmpty {
         compactTextView(
@@ -2794,10 +2782,12 @@ struct CompactSessionView: View {
           .opacity(textOpacity)
       }
 
-      PillBadge(pillSnapshot: pillSnapshot, compact: true)
-        .layoutPriority(1)
+      if badgeFits {
+        PillBadge(pillSnapshot: pillSnapshot, compact: true)
+          .layoutPriority(1)
+      }
     }
-    .padding(.trailing, max(layout.splitEndInset, hardwareNotchSideInset(sideWidth: sideWidth, compactWidth: 22)))
+    .padding(.trailing, layout.capsule ? layout.splitEndInset : hardwareNotchSideInset(sideWidth: sideWidth, compactWidth: 22))
     .frame(width: sideWidth, alignment: .trailing)
     .clipped()
   }
@@ -2939,15 +2929,15 @@ struct CompactReminderView: View {
 
   var body: some View {
     if layout.usesSplitLayout {
-      let sideWidth = max(0, (layout.width - layout.splitGap) / 2)
+      let sideWidth = layout.splitSideWidth
       HStack(spacing: 0) {
         notice
-          .padding(.leading, max(layout.splitEndInset, 7, (min(sideWidth, 40) - 18) / 2))
+          .padding(.leading, layout.capsule ? layout.splitEndInset : max(7, (min(sideWidth, 40) - 18) / 2))
           .frame(width: sideWidth, alignment: .leading)
           .clipped()
         Spacer(minLength: layout.splitGap)
         PillBadge(pillSnapshot: pillSnapshot, compact: true)
-          .padding(.trailing, max(layout.splitEndInset, 7, (min(sideWidth, 40) - 22) / 2))
+          .padding(.trailing, layout.capsule ? layout.splitEndInset : max(7, (min(sideWidth, 40) - 22) / 2))
           .frame(width: sideWidth, alignment: .trailing)
           .clipped()
       }
@@ -3053,7 +3043,7 @@ struct IdleIslandView: View {
   }
 
   private var hardwareNotchBody: some View {
-    let sideWidth = max(0, (layout.width - layout.splitGap) / 2)
+    let sideWidth = layout.splitSideWidth
     let textOpacity = hardwareNotchTextOpacity(sideWidth: sideWidth)
     // Collapsed, quota sits on the trailing side like the task badge; expanded, the toolbar
     // takes that side and quota follows the mascot.
@@ -3062,9 +3052,10 @@ struct IdleIslandView: View {
     // default notch width still fits it.
     // Falls back to the narrow inset whenever nothing fits at the badge's, not only when the
     // bare percentage is what fits there: a 100% reading can be too wide for 9pt yet fit 7pt.
-    let trailingInset = AgentIslandQuotaRow.selection(items: quota, maxWidth: sideWidth - hardwareNotchBadgeReservedInset).items.isEmpty
+    let notchTrailingInset = AgentIslandQuotaRow.selection(items: quota, maxWidth: sideWidth - hardwareNotchBadgeReservedInset).items.isEmpty
       ? hardwareNotchMinimumSideInset
       : hardwareNotchBadgeReservedInset
+    let trailingInset = layout.capsule ? layout.splitEndInset : notchTrailingInset
     return HStack(spacing: 0) {
       idleMark(
         textOpacity: textOpacity,
@@ -3076,8 +3067,8 @@ struct IdleIslandView: View {
       Spacer(minLength: layout.splitGap)
       Group {
         if trailingQuota {
-          AgentIslandQuotaRow(items: quota, maxWidth: sideWidth - max(trailingInset, layout.splitEndInset))
-            .padding(.trailing, max(trailingInset, layout.splitEndInset))
+          AgentIslandQuotaRow(items: quota, maxWidth: sideWidth - trailingInset)
+            .padding(.trailing, trailingInset)
         } else {
           Color.clear
         }
@@ -7148,7 +7139,7 @@ enum AgentIslandDebugHarness {
     return (state, frame)
   }
 
-  /// `XDT_AGENT_ISLAND_DEBUG_APPEARANCE=capsule[,height[,gap[,centerGap]]][,notitle]`, e.g. `capsule,36,4,80`;
+  /// `XDT_AGENT_ISLAND_DEBUG_APPEARANCE=capsule[,height[,gap]][,notitle]`, e.g. `capsule,36,4`;
   /// `notch,notitle` previews the hidden collapsed title on the notch silhouette.
   private static func debugAppearance() -> AgentIslandAppearance? {
     guard let raw = ProcessInfo.processInfo.environment["XDT_AGENT_ISLAND_DEBUG_APPEARANCE"], !raw.isEmpty else {
@@ -7161,8 +7152,7 @@ enum AgentIslandDebugHarness {
       shapeStyle: parts.first == "capsule" ? "capsule" : "notch",
       capsuleHeight: numbers.first ?? fallback.capsuleHeight,
       capsuleTopGap: numbers.dropFirst().first ?? fallback.capsuleTopGap,
-      compactTitleVisible: !parts.contains("notitle"),
-      capsuleCenterGap: numbers.dropFirst(2).first
+      compactTitleVisible: !parts.contains("notitle")
     )
   }
 

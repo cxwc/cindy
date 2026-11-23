@@ -928,7 +928,8 @@ export class AgentIslandService {
 
   setAppearance(appearance: AgentIslandAppearance): void {
     if (sameAgentIslandAppearance(this.appearance, appearance)) return;
-    this.appearance = { ...appearance };
+    const { shapeStyle, capsuleHeight, capsuleTopGap, compactTitleVisible } = appearance;
+    this.appearance = { shapeStyle, capsuleHeight, capsuleTopGap, compactTitleVisible };
     this.publish();
   }
 

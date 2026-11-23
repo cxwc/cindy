@@ -3392,8 +3392,8 @@ describe('AgentIslandService native publishing', () => {
   // Production entry: the set-appearance IPC handler -> state published to the native helper.
   // Rule: electron-security §Main re-validates renderer payloads; the helper sizes the island
   // from these numbers, so an out-of-range or partial value must never reach it.
-  // Minimal failing input: a capsule height outside 18-60pt, a center gap over 400pt, or a payload
-  // missing a field. Tier: unit.
+  // Minimal failing input: an out-of-range capsule height, a missing field, or a legacy center gap
+  // that leaks into native state. Tier: unit.
   it('validates the appearance setting before publishing it to the native helper', async () => {
     const { AgentIslandService } = await import('../service.js');
     const publish = vi.fn((state: AgentIslandDisplayState, frameOrFrames: AgentIslandNativeFrame | AgentIslandNativeFrame[]) => {
@@ -3409,12 +3409,11 @@ describe('AgentIslandService native publishing', () => {
     service.registerIpc();
     const setAppearance = registeredIpcHandler(AGENT_ISLAND_SET_APPEARANCE_CHANNEL);
     const valid = {
-      shapeStyle: 'capsule', capsuleHeight: 36, capsuleTopGap: 4, compactTitleVisible: false, capsuleCenterGap: 120,
+      shapeStyle: 'capsule', capsuleHeight: 36, capsuleTopGap: 4, compactTitleVisible: false,
     };
 
     for (const invalid of [
       { ...valid, capsuleHeight: 61 },
-      { ...valid, capsuleCenterGap: 401 },
       { ...valid, capsuleTopGap: 2.5 },
       { ...valid, shapeStyle: 'oval' },
       { shapeStyle: 'capsule' },
@@ -3426,6 +3425,10 @@ describe('AgentIslandService native publishing', () => {
 
     await setAppearance({}, valid);
     expect(publish.mock.calls.at(-1)?.[0].appearance).toEqual(valid);
+
+    const legacy = { ...valid, capsuleHeight: 42 };
+    await setAppearance({}, { ...legacy, capsuleCenterGap: 400 });
+    expect(publish.mock.calls.at(-1)?.[0].appearance).toEqual(legacy);
   });
 
   it('plays configured sounds for task start and completion transitions', async () => {

@@ -7,7 +7,9 @@ mountPage({
     if (ctx.case === 'subtle') localStorage.setItem('notifications.agentIslandSubtleReminders', 'true');
     else localStorage.removeItem('notifications.agentIslandSubtleReminders');
     if (ctx.case === 'capsule') {
-      localStorage.setItem('notifications.agentIslandAppearance', JSON.stringify({ shapeStyle: 'capsule', capsuleCenterGap: 80 }));
+      localStorage.setItem('notifications.agentIslandAppearance', JSON.stringify({
+        shapeStyle: 'capsule', capsuleHeight: 35, capsuleTopGap: 8, capsuleCenterGap: 400,
+      }));
     } else {
       localStorage.removeItem('notifications.agentIslandAppearance');
     }

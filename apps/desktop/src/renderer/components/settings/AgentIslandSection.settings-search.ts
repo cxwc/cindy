@@ -83,7 +83,7 @@ export const agentIslandSettings = defineSettings({
     titleKey: 'settings.agentIsland.appearanceStyleLabel',
     sectionKey: 'settings.tabs.agentIsland',
     descriptionKey: 'settings.agentIsland.appearanceStyleHint',
-    aliases: ['灵动岛', '刘海', 'notch', 'capsule', '椭圆'],
+    aliases: ['灵动岛', '刘海', 'notch', 'capsule', '椭圆', '挖孔', 'camera'],
     options: AGENT_ISLAND_SHAPE_STYLES.map((style) => ({ value: style, labelKey: SHAPE_STYLE_LABEL_KEYS[style] })),
   },
   capsuleHeightLabel: {
@@ -103,16 +103,6 @@ export const agentIslandSettings = defineSettings({
     targetId: 'settings-search-settings-agentIsland-capsuleTopGapLabel',
     titleKey: 'settings.agentIsland.capsuleTopGapLabel',
     sectionKey: 'settings.tabs.agentIsland',
-  },
-  capsuleCenterGapLabel: {
-    isVisible: areCapsuleControlsVisible,
-    id: 'settings.agentIsland.capsuleCenterGapLabel',
-    fallbackTargetId: 'settings-panel-agent-island',
-    tab: 'agent-island',
-    targetId: 'settings-search-settings-agentIsland-capsuleCenterGapLabel',
-    titleKey: 'settings.agentIsland.capsuleCenterGapLabel',
-    sectionKey: 'settings.tabs.agentIsland',
-    aliases: ['刘海', '挖孔', 'notch', 'camera'],
   },
   compactTitleLabel: {
     isVisible: areIslandControlsVisible,
