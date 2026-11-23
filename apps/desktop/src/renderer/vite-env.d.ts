@@ -144,6 +144,8 @@ interface DeviceLinkConnectionIssuePayload {
   closeCode?: number;
   detail?: string;
   at: number;
+  /** 官方网络上的「已移除」:可以在本机「重新加入」 */
+  rejoinable?: true;
 }
 
 /** 设备互联:presence 推送快照 */
@@ -2393,6 +2395,7 @@ interface ElectronAPI {
   setAnalyticsEnabled: (enabled: boolean) => Promise<AnalyticsSettingsPayload>;
   resetAnalyticsEnabled: () => Promise<AnalyticsSettingsPayload>;
   acceptPrivacyConsent: () => Promise<AnalyticsSettingsPayload>;
+  acceptLegalTermsUpdate: () => Promise<AnalyticsSettingsPayload>;
   onAnalyticsSettingsChange: (callback: (payload: AnalyticsSettingsPayload) => void) => () => void;
 
   // ── 客户端日志上报(设置 → 关于)──
@@ -4418,6 +4421,8 @@ interface ElectronAPI {
       name: string | null,
     ) => Promise<{ deviceId: string; name: string; manualName?: string | null }>;
     deleteDevice: (deviceId: string) => Promise<{ deviceId: string; deleted: boolean }>;
+    /** 本机被移除后「重新加入」(官方网络) */
+    rejoin: () => Promise<{ agentNet: 'rejoined' | 'skipped' | 'failed' }>;
     // —— 控制端:远程会话视图 ——
     openLink: (deviceId: string) => Promise<{ appVersion: string; allowlistHash: string }>;
     closeLink: (deviceId: string) => Promise<{ ok: true }>;
@@ -5254,6 +5259,7 @@ interface ElectronAPI {
       // Stage 2 C2: fork 已迁到 electronAPI.maker.fork (走 maker:fork IPC)。
     };
     bots: {
+      ownsProject: (workingDir: string) => Promise<boolean>;
       projectRepository: (botId: string, retry: boolean) => Promise<import('../shared/botProjectMode').BotProjectRepositoryStatus>;
       getModelChainSettings: () => Promise<{
         modelChain: import('../shared/botModelChain').BotModelRoute[];

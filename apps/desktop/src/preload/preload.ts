@@ -2615,6 +2615,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   /** 登录页协议门放行时调用一次(个人账号登录链路;SSO 与跳过登录豁免不调用);幂等。 */
   acceptPrivacyConsent: (): Promise<AnalyticsSettingsPayload> =>
     ipcRenderer.invoke('analytics:consent-accept'),
+  /** 主界面协议更新确认弹窗点「同意」:记录当前协议版本;幂等。 */
+  acceptLegalTermsUpdate: (): Promise<AnalyticsSettingsPayload> =>
+    ipcRenderer.invoke('analytics:legal-terms-accept'),
   onAnalyticsSettingsChange: (
     callback: (payload: AnalyticsSettingsPayload) => void,
   ): (() => void) =>
@@ -2627,7 +2630,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         typeof raw.allowed !== 'boolean' ||
         typeof raw.privacyConsentAccepted !== 'boolean' ||
         typeof raw.analyticsEnabled !== 'boolean' ||
-        typeof raw.analyticsEnabledCustomized !== 'boolean'
+        typeof raw.analyticsEnabledCustomized !== 'boolean' ||
+        typeof raw.legalTermsUpdateRequired !== 'boolean'
       ) {
         return;
       }
@@ -2636,6 +2640,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         analyticsEnabled: raw.analyticsEnabled,
         analyticsEnabledCustomized: raw.analyticsEnabledCustomized,
         allowed: raw.allowed,
+        legalTermsUpdateRequired: raw.legalTermsUpdateRequired,
       });
     }),
 
@@ -5371,6 +5376,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('device-link:rename-device', { deviceId, name }),
     deleteDevice: (deviceId: string): Promise<{ deviceId: string; deleted: boolean }> =>
       ipcRenderer.invoke('device-link:delete-device', { deviceId }),
+    /** 本机被移除后「重新加入」(官方网络) */
+    rejoin: (): Promise<{ agentNet: 'rejoined' | 'skipped' | 'failed' }> => ipcRenderer.invoke('device-link:rejoin'),
     // —— 控制端:远程会话视图 ——
     openLink: (deviceId: string): Promise<{ appVersion: string; allowlistHash: string }> =>
       ipcRenderer.invoke('device-link:open-link', { deviceId }),
@@ -6372,6 +6379,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         modelChain: import('../shared/botModelChain').BotModelRoute[];
         isCustomized: boolean;
       }> => ipcRenderer.invoke('local-db:bots:model-chain-settings-set', body),
+      ownsProject: (workingDir: string): Promise<boolean> =>
+        ipcRenderer.invoke('local-db:bots:owns-project', workingDir),
       list: (body?: {
         lastReadAtByBotId?: Record<string, number>;
         welcomeContext?: import('../shared/botWelcomeContext').BotWelcomeContext;

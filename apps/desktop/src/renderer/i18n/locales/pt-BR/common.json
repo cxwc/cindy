@@ -7134,6 +7134,15 @@
         "unstable": "A conexão cai e reconecta repetidamente — verifique a rede ou reinicie o Cindy se o problema persistir",
         "agent-net-relay-down": "Não é possível acessar o relay do Agent-Net; reconectando. Computadores conectados diretamente continuam funcionando; outros dispositivos não conseguem se conectar por enquanto"
       },
+      "rejoin": {
+        "hint": "Este dispositivo foi removido da sua conta. Selecione “Reingressar” para trazê-lo de volta.",
+        "action": "Reingressar",
+        "done": "Reingresso concluído",
+        "doneWithoutAgentNet": "Reingresso concluído. O Agent-Net ainda não foi restaurado, então o Device Link será usado por enquanto",
+        "unsupported": "O servidor ainda não permite reingressar. Saia e entre novamente neste dispositivo",
+        "agentNetFailed": "O Agent-Net ainda não foi restaurado. Desative “Usar apenas Agent-Net” para se conectar pelo Device Link por enquanto",
+        "failed": "Não foi possível reingressar. Verifique sua rede e tente novamente"
+      },
       "refresh": "Atualizar",
       "empty": "Nenhum outro dispositivo ainda. Entre no {{appName}} com a mesma conta em outro computador e ele aparecerá aqui.",
       "thisDevice": "Este dispositivo",
@@ -7151,7 +7160,7 @@
       "renameCancel": "Cancelar",
       "delete": "Excluir",
       "deleteTitle": "Excluir “{{name}}”?",
-      "deleteMessage": "Remova este dispositivo da sua conta e desconecte o acesso remoto. Suas sessões e arquivos serão mantidos. Entre novamente nesse dispositivo para adicioná-lo de novo.",
+      "deleteMessage": "Remova este dispositivo da sua conta e desconecte o acesso remoto. Suas sessões e arquivos serão mantidos. Selecione “Reingressar” nesse dispositivo para trazê-lo de volta.",
       "deleteOnlineHint": "Este servidor ainda não permite remover dispositivos online. Tente novamente após a atualização do serviço.",
       "error": {
         "unavailable": "O serviço Device Link está indisponível (não ativado no servidor ou erro de rede)",
@@ -8728,7 +8737,7 @@
           "updated": "Plug-in atualizado.",
           "empty": "Nenhuma versão disponível para instalação.",
           "sign-in": "Entre no GitHub para verificar atualizações.",
-          "forbidden": "Esta conta do GitHub não pode ler o repositório privado.",
+          "forbidden": "Não foi possível ler a versão publicada no GitHub. Verifique o link do repositório e as permissões da sua conta do GitHub.",
           "unavailable": "Não foi possível verificar ou instalar a atualização. Tente novamente."
         },
         "customSlotTitle": "Área de configurações personalizadas do plugin",
@@ -9791,6 +9800,12 @@
       "guidance": "Aguarde antes de solicitar outro código. Reiniciar, reinstalar ou trocar de rede não garante que o limite seja removido.",
       "support": "Se o problema continuar após a espera, envie os logs em particular para feedback@cindy.app com seu sistema operacional, a versão do Cindy, o horário do erro e o código abaixo. Não publique logs."
     }
+  },
+  "legalTermsUpdate": {
+    "title": "Termos atualizados",
+    "body": "Atualizamos os <terms>Termos de Serviço</terms> e a <privacy>Política de Privacidade</privacy> da Cindy. Aceite para continuar usando ou saia.",
+    "agree": "Aceitar",
+    "disagree": "Sair"
   },
   "legacyMigration": {
     "title": "Migrar dados da versão anterior",
@@ -13376,7 +13391,8 @@
           "subject": {
             "githubIssue": "O cartão de confirmação “Enviar Issue do GitHub”",
             "renameSessions": "O cartão de confirmação “Renomear tarefas em lote”",
-            "pluginFileGrant": "O cartão de confirmação “Autorização de arquivos do plugin”"
+            "pluginFileGrant": "O cartão de confirmação “Autorização de arquivos do plugin”",
+            "mediaPathReveal": "O cartão de confirmação “Permitir que o Agent obtenha o local de um arquivo de mídia no computador”"
           }
         },
         "replyWords": {
@@ -17896,6 +17912,7 @@
       }
     },
     "editor": {
+      "reviewModelReadFailed": "Não foi possível ler o modelo da automação. Feche e reabra o editor para tentar novamente.",
       "promptDialog": {
         "titleEdit": "Editar automação",
         "titleCreate": "Criar automação",
@@ -18239,11 +18256,13 @@
         "effortHeading": "Esforço de raciocínio",
         "effortDefault": "Padrão",
         "followSession": "Seguir sessão",
+        "followTeammate": "Seguir o modelo principal do amigo",
         "modelListAria": "Lista de modelos",
         "modelSelectorAria": "Seletor de modelo",
         "categoryListAria": "Modelos de {{category}}",
         "effortListAria": "Esforço de raciocínio",
-        "boundLocationLocked": "As tarefas vinculadas continuam sendo executadas onde estão. Escolha um modelo desse computador."
+        "boundLocationLocked": "As tarefas vinculadas continuam sendo executadas onde estão. Escolha um modelo desse computador.",
+        "modelGroupTitle": "Grupo de modelos “{{name}}”: escolhe uma fonte ao criar uma nova tarefa"
       }
     },
     "toast": {
@@ -20610,6 +20629,7 @@
       "totalDetail_other": "{{count}} cartões × {{amount}}",
       "pay": "Continuar para o pagamento",
       "refundNote": "Cartões-presente não podem ser trocados por dinheiro. Cartões resgatados não são reembolsáveis. Para pedir o reembolso de um cartão não resgatado, entre em contato com o suporte.",
+      "termsNote": "Ao selecionar Continuar para o pagamento, você aceita os <terms>Termos do cartão-presente</terms>.",
       "cancel": "Cancelar",
       "loadFailed": "Não foi possível carregar os limites de compra. Tente novamente mais tarde.",
       "checkoutSubtitle_one": "Cartão-presente {{amount}} × {{count}} · emitido assim que o pagamento for concluído",
