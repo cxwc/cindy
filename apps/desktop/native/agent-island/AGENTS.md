@@ -24,9 +24,25 @@ pnpm --filter desktop preview:island-mascots
 
 这条分支只创建普通窗口，不读 stdin、不创建刘海面板，因此不会干扰正在运行的 Cindy。
 
-另有一个更早的单状态 harness：`XDT_AGENT_ISLAND_DEBUG=idle|completion|interaction`
+另有一个更早的单状态 harness：`XDT_AGENT_ISLAND_DEBUG=idle|compact|completion|interaction`
 （见 `AgentIslandDebugHarness`），用来在真实刘海面板里看整块 UI，与角色预览互补。
+`XDT_AGENT_ISLAND_DEBUG_APPEARANCE=capsule[,高度[,离顶距离[,notitle]]]` 让 harness 用椭圆胶囊外观，
+如 `capsule,36,4`；`notch,notitle` 看刘海样式下隐藏收起标题的效果。
 日志开关是 `XDT_AGENT_ISLAND_DEBUG_LOGS=1`。
+
+## 胶囊外观（刘海样式 / 椭圆胶囊）
+
+设置页「胶囊样式」与「收起时显示任务标题」经 `agent-island:set-appearance` 随显示状态下发为
+`appearance`（缺省 = 刘海样式、显示标题，旧 host 不带该字段）。helper 里：
+
+- 外形统一由 `AgentIslandSilhouette` 画：刘海样式委托 `NotchShape`；椭圆是连续曲率圆角矩形，
+  收起时圆角 = 高度一半（两端半圆），展开时 `expandedCapsuleCornerRadius`（28pt），同一形状类型才能做圆角动画。
+- 椭圆的离顶距离是 `AgentIslandLayout.topInset`：`height` 不含它，面板内整体下移。从面板顶边量的命中区
+  （悬停、点击、左右边改宽、拖动）一律用 `occupiedHeight` / `topZoneHeight`，空隙仍算胶囊的一部分，
+  鼠标甩到屏幕顶边照样能悬停。新增按「面板顶边」算的命中逻辑时同样要用这两个值。
+- 刘海屏上椭圆照样从屏幕顶边算离顶距离，与刘海重叠；内容沿用刘海两侧分栏。宽度不超过刘海（藏进刘海）时
+  不画底色，免得胶囊下沿从刘海底下露出来。
+- 收起态非刘海排布的左右内边距是 `compactEndInset`（刘海样式恒为 11，椭圆随高度加大）。
 
 ## 新增一个角色
 

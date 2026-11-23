@@ -152,3 +152,26 @@
 - 测试价值：生产入口为 set-appearance IPC handler → 下发给 helper 的状态；依据 electron-security「Main 重新校验 Renderer 载荷」；
   现有用例只覆盖角色皮肤；最小失败输入为越界高度或缺字段的载荷；tier unit；单独运行约 3.8s。
 - 限制：无。
+
+### 任务 2：原生胶囊绘制椭圆样式（已完成）
+
+- 改动（`native/agent-island/macos-agent-island-helper.swift`）：
+  - 解析显示状态里的 `appearance`（缺省按刘海样式），高度与离顶距离在 helper 内再夹一次范围。
+  - 新增 `AgentIslandSilhouette`：刘海样式委托原 `NotchShape`；椭圆为连续曲率圆角矩形，收起时圆角 = 高度一半，展开时 28pt，可动画。
+  - `AgentIslandLayout` 新增 `capsule`、`topInset`（离顶距离）、`cornerRadius`、`compactEndInset`；椭圆收起高度用滑杆值，展开顶栏高度与收起胶囊一致；
+    椭圆不画刘海「肩」（`topExtension = 0`）。
+  - 面板内按离顶距离下移；悬停、点击、左右边改宽、拖动等从面板顶边量的命中区改用 `occupiedHeight` / `topZoneHeight`，空隙算作胶囊的一部分；
+    面板高度相应加上空隙。
+  - 刘海屏保留刘海分栏；宽度藏进刘海时椭圆不画底色和阴影。
+  - 收起态非刘海排布左右内边距：刘海样式不变（11pt），椭圆为 `max(11, 高度/2 − 4)`（32pt 时 12pt，40pt 时 16pt）。
+    比计划里的「约为高度一半」略小：实测 11pt 内边距下角色在 20–40pt 高度都不会被圆弧切到，过大的内边距只会挤掉标题。
+  - 调试 harness 增加 `compact` 模式与 `XDT_AGENT_ISLAND_DEBUG_APPEARANCE`；模块 `AGENTS.md` 补充胶囊外观说明。
+- 验证：
+  - 用 26.5 SDK 编译 helper 通过。
+  - 离屏渲染（临时程序，不入库）核对：无刘海屏刘海样式与改动前一致；椭圆 32/6、20/0、40/12 收起态、空闲态外形与内容正确；
+    展开为悬浮大圆角面板（展开内容含滚动视图，离屏渲染器画不出，刘海样式同样空白，属渲染器限制）；
+    模拟刘海屏上椭圆与刘海重叠、内容在刘海两侧；藏进刘海宽度时不画任何东西。
+  - 原生拖动回归 `reminder-drag.test.swift`：刘海样式与椭圆两种外观各 13 个场景通过。
+    注：该测试文件在 main 上本身编译不过（缺 `hasSystemIsland` 参数，与本任务无关），本次用临时补参数的副本运行，未改仓库里的测试。
+  - `nativeContracts.test.ts` 通过。
+- 限制：真实屏幕上的悬停 / 点击展开 / 拖动 / 改宽和展开态内容，等任务 4 设置页可切换后在开发版里人工验收（本进程没有屏幕录制权限，无法截屏）。

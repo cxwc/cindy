@@ -1489,9 +1489,31 @@ struct AgentIslandQuotaItem: Codable, Equatable, Identifiable {
   let textWidth: Double
 }
 
+/// Mirrors `AgentIslandAppearance` in `shared/agentIsland.ts`; absent on older hosts.
+struct AgentIslandAppearance: Codable, Equatable {
+  let shapeStyle: String
+  let capsuleHeight: Double
+  let capsuleTopGap: Double
+  let compactTitleVisible: Bool
+
+  static let fallback = AgentIslandAppearance(
+    shapeStyle: "notch",
+    capsuleHeight: 32,
+    capsuleTopGap: 6,
+    compactTitleVisible: true
+  )
+
+  var isCapsule: Bool { shapeStyle == "capsule" }
+
+  /// Main validates the range; clamp again so a malformed line can never size the panel.
+  var clampedCapsuleHeight: CGFloat { CGFloat(min(40, max(20, capsuleHeight.isFinite ? capsuleHeight : 32))) }
+  var clampedCapsuleTopGap: CGFloat { CGFloat(min(12, max(0, capsuleTopGap.isFinite ? capsuleTopGap : 6))) }
+}
+
 struct AgentIslandDisplayState: Codable {
   var compactReminder: AgentIslandCompactReminder? = nil
   var quota: [AgentIslandQuotaItem]? = nil
+  var appearance: AgentIslandAppearance? = nil
   let visible: Bool
   let mode: String
   let notchStatus: String
@@ -1561,6 +1583,10 @@ struct AgentIslandDisplayState: Codable {
       return defaultAgentIslandMascotSkin
     }
     return skin
+  }
+
+  var displayAppearance: AgentIslandAppearance {
+    appearance ?? .fallback
   }
 }
 
@@ -2077,10 +2103,24 @@ struct AgentIslandLayout: Equatable {
   let expanded: Bool
   let hasHardwareNotch: Bool
   let notchWidth: CGFloat
+  /// Floating capsule silhouette instead of the notch that hangs from the top edge.
+  var capsule: Bool = false
+  /// Transparent gap above the island (capsule only). `height` excludes it.
+  var topInset: CGFloat = 0
+  /// Capsule corner radius; clamped to half the height, so collapsed ends are semicircles.
+  var cornerRadius: CGFloat = 0
+  /// Horizontal content inset of the collapsed island's non-notch layouts.
+  var compactEndInset: CGFloat = 11
 
   var hardwareNotchHidden: Bool {
     hasHardwareNotch && !expanded && width <= notchWidth + 1
   }
+
+  /// Distance from the panel's top edge to the island's bottom edge.
+  var occupiedHeight: CGFloat { topInset + height }
+
+  /// Distance from the panel's top edge to the bottom of the top bar (menu bar zone).
+  var topZoneHeight: CGFloat { topInset + menuBarZoneHeight }
 
   static func compute(
     state: AgentIslandDisplayState,
@@ -2094,6 +2134,11 @@ struct AgentIslandLayout: Equatable {
     let expanded = state.mode == "expanded"
     let hasSession = state.totalCount > 0
     let notchStatus = state.notchStatus
+    let appearance = state.displayAppearance
+    let capsule = appearance.isCapsule
+    let capsuleHeight = appearance.clampedCapsuleHeight
+    // Keeps the collapsed content clear of the semicircular ends as the capsule grows.
+    let compactEndInset = capsule ? max(11, (capsuleHeight / 2 - 4).rounded()) : 11
     let layoutScreenMetrics = hardwareNotchLayoutEnabled
       ? screenMetrics
       : screenMetrics.disablingHardwareNotchLayout()
@@ -2116,11 +2161,13 @@ struct AgentIslandLayout: Equatable {
     if !expanded, state.compactReminder != nil {
       let minimumReminderWidth = layoutScreenMetrics.hasNotch
         ? defaultCompactWidth(hasSession: true, screenMetrics: layoutScreenMetrics, compactBadgeWidth: compactBadgeWidth)
-        : compactIslandStatusIconWidth + 14 + 22
+        : compactIslandStatusIconWidth + 14 + 22 + (compactEndInset - 11) * 2
           + PillBadge.intrinsicWidth(pillSnapshot: state.pillSnapshot, compact: true)
       width = min(max(baseWidth, minimumReminderWidth), max(1, availableFrameWidth - compactIslandCarrierInset * 2))
     }
-    let height = computeHeight(state: state, expanded: expanded, notchBaselineHeight: notchBaselineHeight)
+    // The capsule's top bar is the capsule itself, so expanding grows the panel around it.
+    let topBarHeight = capsule ? capsuleHeight : notchBaselineHeight
+    let height = computeHeight(state: state, expanded: expanded, notchBaselineHeight: topBarHeight)
     let shape = shapeForStatus(notchStatus)
     let shadow = shadowForStatus(notchStatus)
     let shadowVisible = state.shadowVisible || locallyHovered
@@ -2128,15 +2175,19 @@ struct AgentIslandLayout: Equatable {
       width: width,
       height: height,
       carrierInset: expanded ? expandedIslandCarrierExpandedInset : compactIslandCarrierInset,
-      menuBarZoneHeight: max(8, notchBaselineHeight),
-      topExtension: shape.topExtension,
+      menuBarZoneHeight: max(8, topBarHeight),
+      topExtension: capsule ? 0 : shape.topExtension,
       bottomRadius: shape.bottomRadius,
       shadowRadius: shadow.radius,
       shadowY: shadow.y,
       shadowOpacity: shadowVisible ? shadow.opacity : 0,
       expanded: expanded,
       hasHardwareNotch: layoutScreenMetrics.hasNotch,
-      notchWidth: CGFloat(layoutScreenMetrics.notchWidth)
+      notchWidth: CGFloat(layoutScreenMetrics.notchWidth),
+      capsule: capsule,
+      topInset: capsule ? appearance.clampedCapsuleTopGap : 0,
+      cornerRadius: capsule ? (expanded ? expandedCapsuleCornerRadius : height / 2) : 0,
+      compactEndInset: compactEndInset
     )
   }
 
@@ -2326,6 +2377,7 @@ struct AgentIslandLayout: Equatable {
 }
 
 private let expandedIslandHorizontalPadding: CGFloat = 38
+private let expandedCapsuleCornerRadius: CGFloat = 28
 private let agentIslandOpenAnimation = Animation.spring(response: 0.42, dampingFraction: 0.82)
 private let agentIslandCompactSnapAnimation = Animation.spring(response: 0.18, dampingFraction: 0.76)
 private let agentIslandCompactSnapFrameDuration: TimeInterval = 0.16
@@ -2403,6 +2455,42 @@ struct NotchShape: Shape {
   }
 }
 
+/// The island's outline in either style. One shape type keeps a single animatable
+/// clip path, so the capsule's radius springs between collapsed and expanded.
+struct AgentIslandSilhouette: Shape {
+  var capsule: Bool
+  var topExtension: CGFloat
+  var bottomRadius: CGFloat
+  var cornerRadius: CGFloat
+  var minHeight: CGFloat
+
+  init(layout: AgentIslandLayout) {
+    capsule = layout.capsule
+    topExtension = layout.topExtension
+    bottomRadius = layout.bottomRadius
+    cornerRadius = layout.cornerRadius
+    minHeight = layout.menuBarZoneHeight
+  }
+
+  var animatableData: AnimatablePair<AnimatablePair<CGFloat, CGFloat>, CGFloat> {
+    get { AnimatablePair(AnimatablePair(topExtension, bottomRadius), cornerRadius) }
+    set {
+      topExtension = newValue.first.first
+      bottomRadius = newValue.first.second
+      cornerRadius = newValue.second
+    }
+  }
+
+  func path(in rect: CGRect) -> Path {
+    guard capsule else {
+      return NotchShape(topExtension: topExtension, bottomRadius: bottomRadius, minHeight: minHeight)
+        .path(in: rect)
+    }
+    let radius = max(0, min(cornerRadius, rect.height / 2, rect.width / 2))
+    return Path(roundedRect: rect, cornerRadius: radius, style: .continuous)
+  }
+}
+
 struct AgentIslandRootView: View {
   @ObservedObject var model: AgentIslandModel
   let eventSink: ([String: Any]) -> Void
@@ -2422,7 +2510,7 @@ struct AgentIslandRootView: View {
       ZStack(alignment: .top) {
         islandBody(layout: layout)
           .frame(width: layout.width, height: layout.height)
-          .position(x: proxy.size.width / 2, y: layout.height / 2)
+          .position(x: proxy.size.width / 2, y: layout.topInset + layout.height / 2)
           .transaction { transaction in
             if model.layoutDragActive && !model.layoutSnapAnimating {
               transaction.animation = nil
@@ -2460,15 +2548,14 @@ struct AgentIslandRootView: View {
   }
 
   private func islandBody(layout: AgentIslandLayout) -> some View {
-    ZStack(alignment: .top) {
-      NotchShape(
-        topExtension: layout.topExtension,
-        bottomRadius: layout.bottomRadius,
-        minHeight: layout.menuBarZoneHeight
-      )
-        .fill(Color.black)
+    // A capsule narrow enough to hide in the hardware notch draws nothing: its lower edge
+    // would otherwise peek out below the notch.
+    let fillHidden = layout.capsule && layout.hardwareNotchHidden
+    return ZStack(alignment: .top) {
+      AgentIslandSilhouette(layout: layout)
+        .fill(fillHidden ? Color.clear : Color.black)
         .shadow(
-          color: Color.black.opacity(layout.shadowOpacity),
+          color: Color.black.opacity(fillHidden ? 0 : layout.shadowOpacity),
           radius: layout.shadowRadius,
           x: 0,
           y: layout.shadowY
@@ -2480,11 +2567,7 @@ struct AgentIslandRootView: View {
         .frame(width: layout.width, height: layout.height, alignment: .top)
         // Clip outgoing transition layers together with the incoming content.
         .compositingGroup()
-        .clipShape(NotchShape(
-          topExtension: layout.topExtension,
-          bottomRadius: layout.bottomRadius,
-          minHeight: layout.menuBarZoneHeight
-        ))
+        .clipShape(AgentIslandSilhouette(layout: layout))
     }
   }
 
@@ -2567,7 +2650,9 @@ struct CompactSessionView: View {
   }
 
   private var compactHorizontalPadding: CGFloat {
-    layout.expanded ? expandedIslandHorizontalPadding : (layout.width <= 96 ? 7 : 11)
+    if layout.expanded { return expandedIslandHorizontalPadding }
+    let base: CGFloat = layout.width <= 96 ? 7 : 11
+    return layout.capsule ? max(base, layout.compactEndInset - (11 - base)) : base
   }
 
   private var showsRegularDetail: Bool {
@@ -2800,7 +2885,7 @@ struct CompactReminderView: View {
         PillBadge(pillSnapshot: pillSnapshot, compact: true)
           .fixedSize()
       }
-      .padding(.horizontal, 11)
+      .padding(.horizontal, layout.compactEndInset)
     }
   }
 
@@ -2883,7 +2968,7 @@ struct IdleIslandView: View {
         .frame(height: layout.menuBarZoneHeight)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     } else {
-      idleMark(quotaWidth: layout.width - compactIdleQuotaChrome)
+      idleMark(quotaWidth: layout.width - compactIdleQuotaChrome - (layout.compactEndInset - 11) * 2)
         .frame(height: layout.expanded ? layout.menuBarZoneHeight : nil)
         .frame(
           maxWidth: .infinity,
@@ -5071,13 +5156,13 @@ final class TrackingView: NSView {
     let insideVisualIsland = point.x >= rect.minX
       && point.x <= rect.maxX
       && point.y >= 0
-      && point.y <= layout.height
+      && point.y <= layout.occupiedHeight
     if !insideVisualIsland {
       emitHover(menuBar: false, panel: false)
       return
     }
     if layout.expanded {
-      emitHover(menuBar: point.y <= layout.menuBarZoneHeight, panel: point.y > layout.menuBarZoneHeight)
+      emitHover(menuBar: point.y <= layout.topZoneHeight, panel: point.y > layout.topZoneHeight)
       return
     }
     emitHover(menuBar: true, panel: false)
@@ -5098,7 +5183,8 @@ final class TrackingView: NSView {
       x: originX - layout.topExtension,
       y: 0,
       width: layout.width + layout.topExtension * 2,
-      height: layout.height
+      // A capsule's top gap stays part of the target, so a flick to the top edge still hovers it.
+      height: layout.occupiedHeight
     )
   }
 
@@ -5111,7 +5197,7 @@ final class TrackingView: NSView {
     if !layout.expanded {
       return [resizeHitRect(edge: edge, rect: rect, innerWidth: compactIslandResizeHitWidth, y: 0, height: rect.height)]
     }
-    let topHeight = min(rect.height, max(0, layout.menuBarZoneHeight))
+    let topHeight = min(rect.height, max(0, layout.topZoneHeight))
     let panelHeight = max(0, rect.height - topHeight)
     var rects: [CGRect] = []
     if topHeight > 0 {
@@ -5167,7 +5253,7 @@ final class TrackingView: NSView {
         x: minX,
         y: 0,
         width: max(0, maxX - minX),
-        height: layout.menuBarZoneHeight
+        height: layout.topZoneHeight
       )
     }
     return CGRect(
@@ -5396,7 +5482,7 @@ final class AgentIslandController {
     let cocoaFrame = convertToCocoaFrame(
       frame,
       screen: screen,
-      carrierHeight: max(CGFloat(frame.height), ceil(layout.height + layout.carrierInset))
+      carrierHeight: max(CGFloat(frame.height), ceil(layout.occupiedHeight + layout.carrierInset))
     )
     emitFrameDebug(
       event: "apply-frame",
@@ -6193,9 +6279,9 @@ final class AgentIslandController {
   private func visualIslandRect(frame: NSRect, layout: AgentIslandLayout) -> NSRect {
     NSRect(
       x: frame.midX - layout.width / 2,
-      y: frame.maxY - layout.height,
+      y: frame.maxY - layout.occupiedHeight,
       width: layout.width,
-      height: layout.height
+      height: layout.occupiedHeight
     )
   }
 
@@ -6698,7 +6784,7 @@ final class AgentIslandController {
 
     let topOffset = hitRect.maxY - screenPoint.y
     if lastLayout.expanded {
-      return topOffset <= lastLayout.menuBarZoneHeight ? .menuBar : .panel
+      return topOffset <= lastLayout.topZoneHeight ? .menuBar : .panel
     }
 
     return .menuBar
@@ -6724,7 +6810,7 @@ final class AgentIslandController {
     guard lastLayout.expanded else {
       return compactIslandResizeHitWidth
     }
-    let topHeight = min(hitRect.height, max(0, lastLayout.menuBarZoneHeight))
+    let topHeight = min(hitRect.height, max(0, lastLayout.topZoneHeight))
     let topZoneMinY = hitRect.maxY - topHeight
     if screenPoint.y >= topZoneMinY {
       return expandedIslandTopResizeInnerHitWidth
@@ -6982,7 +7068,26 @@ enum AgentIslandDebugHarness {
       displayBounds: displayBounds,
       contentWidth: nil
     )
-    return (debugState(mode: mode), frame)
+    var state = debugState(mode: mode)
+    state.appearance = debugAppearance()
+    return (state, frame)
+  }
+
+  /// `XDT_AGENT_ISLAND_DEBUG_APPEARANCE=capsule[,height[,gap[,notitle]]]`, e.g. `capsule,36,4`;
+  /// `notch,notitle` previews the hidden collapsed title on the notch silhouette.
+  private static func debugAppearance() -> AgentIslandAppearance? {
+    guard let raw = ProcessInfo.processInfo.environment["XDT_AGENT_ISLAND_DEBUG_APPEARANCE"], !raw.isEmpty else {
+      return nil
+    }
+    let parts = raw.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+    let fallback = AgentIslandAppearance.fallback
+    let numbers = parts.dropFirst().compactMap { Double($0) }
+    return AgentIslandAppearance(
+      shapeStyle: parts.first == "capsule" ? "capsule" : "notch",
+      capsuleHeight: numbers.first ?? fallback.capsuleHeight,
+      capsuleTopGap: numbers.dropFirst().first ?? fallback.capsuleTopGap,
+      compactTitleVisible: !parts.contains("notitle")
+    )
   }
 
   private static func debugState(mode: String) -> AgentIslandDisplayState {
@@ -6991,6 +7096,15 @@ enum AgentIslandDebugHarness {
     switch mode {
     case "idle":
       return AgentIslandDisplayState.empty
+    case "compact":
+      return displayState(
+        mode: "compact",
+        displayPolicy: "closed",
+        displaySurface: "collapsed",
+        currentSessionId: sessions[0].sessionId,
+        sessions: sessions,
+        now: now
+      )
     case "completion":
       return displayState(
         mode: "expanded",
