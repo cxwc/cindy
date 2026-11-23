@@ -6,6 +6,13 @@ mountPage({
     localStorage.setItem('notifications.agentIslandEnabled', 'true');
     if (ctx.case === 'subtle') localStorage.setItem('notifications.agentIslandSubtleReminders', 'true');
     else localStorage.removeItem('notifications.agentIslandSubtleReminders');
+    if (ctx.case === 'capsule') {
+      localStorage.setItem('notifications.agentIslandAppearance', JSON.stringify({
+        shapeStyle: 'capsule', capsuleHeight: 35, capsuleTopGap: 8, capsuleCenterGap: 400,
+      }));
+    } else {
+      localStorage.removeItem('notifications.agentIslandAppearance');
+    }
     return {
       platform: 'darwin', osRelease: '24.0.0',
       agentIsland: {
@@ -13,6 +20,7 @@ mountPage({
         setSubtleReminders: async () => ({ ok: true }),
         setSoundSettings: async () => ({ ok: true }),
         setMascotSkin: async () => ({ ok: true }),
+        setAppearance: async () => ({ ok: true }),
         setDisplayTarget: async () => ({ ok: true }),
         getDisplayOptions: async () => ({ ok: true, options: [] }),
       },

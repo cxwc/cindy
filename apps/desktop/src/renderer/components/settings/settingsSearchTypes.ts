@@ -13,6 +13,8 @@ export interface SettingsSearchContext extends ImBotIdentity {
   speakerFilter?: { supported: boolean; enrolled: boolean };
   agentIsland?: {
     supported: boolean; enabled: boolean; soundEnabled?: boolean; liveActivitySupported?: boolean; liveActivity?: boolean;
+    /** Floating capsule style selected; its size sliders only show then. */
+    capsule?: boolean;
   };
   /** Selector visibility only; never expose the user's custom media URL to search. */
   wallpaperMotionAvailable?: boolean;

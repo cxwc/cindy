@@ -1,9 +1,22 @@
 import { TAB_LABEL_KEY } from '@/lib/tabLabels';
-import { AGENT_ISLAND_MASCOT_SKINS, AGENT_ISLAND_SOUND_EVENTS, AGENT_ISLAND_SOUND_OPTIONS } from '../../../shared/agentIsland';
+import {
+  AGENT_ISLAND_MASCOT_SKINS,
+  AGENT_ISLAND_SHAPE_STYLES,
+  AGENT_ISLAND_SOUND_EVENTS,
+  AGENT_ISLAND_SOUND_OPTIONS,
+} from '../../../shared/agentIsland';
 import { defineSettings, type SettingsSearchContext, type SettingsSearchModule } from './settingsSearchTypes';
 
 const areIslandControlsVisible = ({ agentIsland }: SettingsSearchContext) =>
   agentIsland?.supported === true && agentIsland.enabled;
+
+const areCapsuleControlsVisible = (context: SettingsSearchContext) =>
+  areIslandControlsVisible(context) && context.agentIsland?.capsule === true;
+
+const SHAPE_STYLE_LABEL_KEYS = {
+  notch: 'settings.agentIsland.appearanceStyleNotch',
+  capsule: 'settings.agentIsland.appearanceStyleCapsule',
+} as const;
 
 /** Character and sounds also serve the Live Activity, so they stay visible with it alone. */
 const areSharedControlsVisible = ({ agentIsland }: SettingsSearchContext) =>
@@ -60,6 +73,46 @@ export const agentIslandSettings = defineSettings({
     titleKey: 'settings.agentIsland.displayLabel',
     sectionKey: 'settings.tabs.agentIsland',
     descriptionKey: 'settings.agentIsland.displayHint',
+  },
+  appearanceStyleLabel: {
+    isVisible: areIslandControlsVisible,
+    id: 'settings.agentIsland.appearanceStyleLabel',
+    fallbackTargetId: 'settings-panel-agent-island',
+    tab: 'agent-island',
+    targetId: 'settings-search-settings-agentIsland-appearanceStyleLabel',
+    titleKey: 'settings.agentIsland.appearanceStyleLabel',
+    sectionKey: 'settings.tabs.agentIsland',
+    descriptionKey: 'settings.agentIsland.appearanceStyleHint',
+    aliases: ['灵动岛', '刘海', 'notch', 'capsule', '椭圆', '挖孔', 'camera'],
+    options: AGENT_ISLAND_SHAPE_STYLES.map((style) => ({ value: style, labelKey: SHAPE_STYLE_LABEL_KEYS[style] })),
+  },
+  capsuleHeightLabel: {
+    isVisible: areCapsuleControlsVisible,
+    id: 'settings.agentIsland.capsuleHeightLabel',
+    fallbackTargetId: 'settings-panel-agent-island',
+    tab: 'agent-island',
+    targetId: 'settings-search-settings-agentIsland-capsuleHeightLabel',
+    titleKey: 'settings.agentIsland.capsuleHeightLabel',
+    sectionKey: 'settings.tabs.agentIsland',
+  },
+  capsuleTopGapLabel: {
+    isVisible: areCapsuleControlsVisible,
+    id: 'settings.agentIsland.capsuleTopGapLabel',
+    fallbackTargetId: 'settings-panel-agent-island',
+    tab: 'agent-island',
+    targetId: 'settings-search-settings-agentIsland-capsuleTopGapLabel',
+    titleKey: 'settings.agentIsland.capsuleTopGapLabel',
+    sectionKey: 'settings.tabs.agentIsland',
+  },
+  compactTitleLabel: {
+    isVisible: areIslandControlsVisible,
+    id: 'settings.agentIsland.compactTitleLabel',
+    fallbackTargetId: 'settings-panel-agent-island',
+    tab: 'agent-island',
+    targetId: 'settings-search-settings-agentIsland-compactTitleLabel',
+    titleKey: 'settings.agentIsland.compactTitleLabel',
+    sectionKey: 'settings.tabs.agentIsland',
+    descriptionKey: 'settings.agentIsland.compactTitleHint',
   },
   skinLabel: {
     isVisible: areSharedControlsVisible,

@@ -70,7 +70,7 @@ import { CURRENT_CINDY_REGION } from '../../../shared/brandRegion';
 import { useVoiceInputModelSelection } from '@/hooks/useVoiceInputModelSelection';
 import { useVoiceSpeakerFilterStatus } from '@/hooks/useVoiceSpeakerFilterStatus';
 import { getVoiceInputSettings } from '@/hooks/useVoiceInputSettings';
-import { getAgentIslandEnabled, getAgentIslandLiveActivity, getAgentIslandSoundSettings, isAgentIslandSupported, loadAgentIslandLiveActivitySupport, subscribeAgentIslandSettings } from '@/hooks/useAgentIslandSettings';
+import { getAgentIslandEnabled, getAgentIslandLiveActivity, getAgentIslandSoundSettings, isAgentIslandCapsuleStyle, isAgentIslandSupported, loadAgentIslandLiveActivitySupport, subscribeAgentIslandSettings } from '@/hooks/useAgentIslandSettings';
 
 // Keep General available with the route; load other sections only when opened.
 const VoiceInputSection = lazy(() => import('./VoiceInputSection').then(module => ({ default: module.VoiceInputSection })));
@@ -135,6 +135,7 @@ function SettingsViewContent() {
   const agentIslandEnabled = useSyncExternalStore(subscribeAgentIslandSettings, getAgentIslandEnabled);
   const agentIslandSoundEnabled = useSyncExternalStore(subscribeAgentIslandSettings, getAgentIslandSoundEnabled);
   const agentIslandLiveActivity = useSyncExternalStore(subscribeAgentIslandSettings, getAgentIslandLiveActivity);
+  const agentIslandCapsule = useSyncExternalStore(subscribeAgentIslandSettings, isAgentIslandCapsuleStyle);
   const agentIslandSupported = isAgentIslandSupported();
   const [agentIslandLiveActivitySupported, setAgentIslandLiveActivitySupported] = useState(false);
   useEffect(() => {
@@ -367,12 +368,13 @@ function SettingsViewContent() {
       soundEnabled: agentIslandSoundEnabled,
       liveActivitySupported: agentIslandLiveActivitySupported,
       liveActivity: agentIslandLiveActivity,
+      capsule: agentIslandCapsule,
     },
     voiceInput: voiceModelSelection.ready && voiceModelSelection.selection ? {
       serviceMode: voiceModelSelection.selection.serviceMode,
       asrProvider: voiceModelSelection.selection.asrProvider,
     } : undefined,
-  }), [locale, wallpaperMotionAvailable, mode, user?.membershipKind, voiceModelSelection.ready, voiceModelSelection.selection, voiceRefinementEnabled, speakerFilterStatus?.supported, speakerFilterStatus?.enrolled, agentIslandEnabled, agentIslandSupported, agentIslandSoundEnabled, agentIslandLiveActivitySupported, agentIslandLiveActivity]);
+  }), [locale, wallpaperMotionAvailable, mode, user?.membershipKind, voiceModelSelection.ready, voiceModelSelection.selection, voiceRefinementEnabled, speakerFilterStatus?.supported, speakerFilterStatus?.enrolled, agentIslandEnabled, agentIslandSupported, agentIslandSoundEnabled, agentIslandLiveActivitySupported, agentIslandLiveActivity, agentIslandCapsule]);
   const requestedEntry = selectedPluginPage
     ? pluginSearchDocuments.find(document => document.page.id === selectedPluginPage.id && document.entry.id === rawSection)?.entry ?? null
     : resolveSettingsSearchEntry(activeTab, searchParams.get('section'));

@@ -11,14 +11,17 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   DEFAULT_AGENT_ISLAND_DISPLAY_TARGET,
   DEFAULT_AGENT_ISLAND_LIVE_ACTIVITY,
+  DEFAULT_AGENT_ISLAND_APPEARANCE,
   DEFAULT_AGENT_ISLAND_MASCOT_SKIN,
   DEFAULT_AGENT_ISLAND_SOUND_SETTINGS,
   cloneAgentIslandDisplayTarget,
   cloneAgentIslandSoundSettings,
   isAgentIslandMascotSkin,
+  pickAgentIslandAppearanceOverrides,
   normalizeAgentIslandDisplayTarget,
   normalizeAgentIslandSoundSettings,
   isAgentIslandSupportedPlatform,
+  type AgentIslandAppearance,
   type AgentIslandDisplayOption,
   type AgentIslandDisplayTarget,
   type AgentIslandMascotSkin,
@@ -31,6 +34,8 @@ import { createLogger } from '@/lib/logger';
 const STORAGE_KEY = 'notifications.agentIslandEnabled';
 const SOUND_STORAGE_KEY = 'notifications.agentIslandSoundSettings';
 const MASCOT_SKIN_STORAGE_KEY = 'notifications.agentIslandMascotSkin';
+/** Only the appearance fields the user changed; absent fields follow the current defaults. */
+const APPEARANCE_STORAGE_KEY = 'notifications.agentIslandAppearance';
 const DISPLAY_TARGET_STORAGE_KEY = 'notifications.agentIslandDisplayTarget';
 const SUBTLE_REMINDERS_STORAGE_KEY = 'notifications.agentIslandSubtleReminders';
 /** Present only when the user overrode the default (on). */
@@ -278,6 +283,31 @@ function getAgentIslandSetMascotSkinApi():
   return typeof setMascotSkin === 'function' ? setMascotSkin : null;
 }
 
+function readAgentIslandAppearanceOverrides(): Partial<AgentIslandAppearance> {
+  try {
+    const raw = localStorage.getItem(APPEARANCE_STORAGE_KEY);
+    return raw ? pickAgentIslandAppearanceOverrides(JSON.parse(raw) as unknown) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function getAgentIslandAppearance(): AgentIslandAppearance {
+  return { ...DEFAULT_AGENT_ISLAND_APPEARANCE, ...readAgentIslandAppearanceOverrides() };
+}
+
+/** Primitive snapshot for `useSyncExternalStore` (settings search visibility). */
+export function isAgentIslandCapsuleStyle(): boolean {
+  return getAgentIslandAppearance().shapeStyle === 'capsule';
+}
+
+function getAgentIslandSetAppearanceApi():
+  | ((appearance: AgentIslandAppearance) => Promise<{ ok: true }>)
+  | null {
+  const setAppearance = window.electronAPI?.agentIsland?.setAppearance;
+  return typeof setAppearance === 'function' ? setAppearance : null;
+}
+
 function getAgentIslandSetDisplayTargetApi():
   | ((target: AgentIslandDisplayTarget) => Promise<{ ok: true }>)
   | null {
@@ -344,6 +374,22 @@ async function applyAgentIslandMascotSkinToMain(skin: AgentIslandMascotSkin): Pr
   }
 }
 
+async function applyAgentIslandAppearanceToMain(appearance: AgentIslandAppearance): Promise<boolean> {
+  if (!isAgentIslandSupported()) return false;
+  const setAppearance = getAgentIslandSetAppearanceApi();
+  if (!setAppearance) {
+    log.warn('agent island setAppearance unavailable; restart desktop to load the latest preload');
+    return false;
+  }
+  try {
+    await setAppearance(appearance);
+    return true;
+  } catch (err) {
+    log.warn('agent island setAppearance failed', err);
+    return false;
+  }
+}
+
 async function applyAgentIslandDisplayTargetToMain(target: AgentIslandDisplayTarget): Promise<boolean> {
   if (!isAgentIslandSupported()) return false;
   const setDisplayTarget = getAgentIslandSetDisplayTargetApi();
@@ -390,6 +436,7 @@ export function syncAgentIslandEnabledToMain(): void {
       applyAgentIslandLiveActivityToMain(getAgentIslandLiveActivity()),
       applyAgentIslandSoundSettingsToMain(getAgentIslandSoundSettings()),
       applyAgentIslandMascotSkinToMain(getAgentIslandMascotSkin()),
+      applyAgentIslandAppearanceToMain(getAgentIslandAppearance()),
       applyAgentIslandDisplayTargetToMain(getAgentIslandDisplayTarget()),
     ]);
     await applyAgentIslandEnabledToMain(getAgentIslandEnabled());
@@ -470,6 +517,24 @@ export async function setAgentIslandMascotSkin(next: AgentIslandMascotSkin): Pro
   return true;
 }
 
+/** Applies the changed fields, then records them as the user's explicit choices. */
+export async function setAgentIslandAppearance(patch: Partial<AgentIslandAppearance>): Promise<boolean> {
+  const changes = pickAgentIslandAppearanceOverrides(patch);
+  const overrides = { ...readAgentIslandAppearanceOverrides(), ...changes };
+  const applied = await applyAgentIslandAppearanceToMain({ ...DEFAULT_AGENT_ISLAND_APPEARANCE, ...overrides });
+  if (!applied) {
+    notifySubscribers();
+    return false;
+  }
+  try {
+    localStorage.setItem(APPEARANCE_STORAGE_KEY, JSON.stringify(overrides));
+  } catch {
+    // ignore
+  }
+  notifySubscribers();
+  return true;
+}
+
 export async function setAgentIslandDisplayTarget(next: AgentIslandDisplayTarget): Promise<boolean> {
   const target = cloneAgentIslandDisplayTarget(normalizeAgentIslandDisplayTarget(next));
   const applied = await applyAgentIslandDisplayTargetToMain(target);
@@ -508,12 +573,14 @@ export function useAgentIslandSettings(): {
   soundSettings: AgentIslandSoundSettings;
   soundCustomized: boolean;
   mascotSkin: AgentIslandMascotSkin;
+  appearance: AgentIslandAppearance;
   displayTarget: AgentIslandDisplayTarget;
   displayOptions: AgentIslandDisplayOption[];
   setSoundEnabled: (next: boolean) => void;
   setSound: (event: AgentIslandSoundEvent, sound: AgentIslandSoundChoice) => void;
   resetSoundSettings: () => Promise<boolean>;
   setMascotSkin: (skin: AgentIslandMascotSkin) => void;
+  setAppearance: (patch: Partial<AgentIslandAppearance>) => Promise<boolean>;
   setDisplayTarget: (target: AgentIslandDisplayTarget) => void;
   previewSound: (sound: AgentIslandSoundChoice) => void;
   selectSoundFile: () => Promise<AgentIslandSoundChoice | null>;
@@ -528,6 +595,7 @@ export function useAgentIslandSettings(): {
   const [soundSettings, setSoundSettingsState] = useState<AgentIslandSoundSettings>(getAgentIslandSoundSettings);
   const [soundCustomized, setSoundCustomizedState] = useState<boolean>(isAgentIslandSoundSettingsCustomized);
   const [mascotSkin, setMascotSkinState] = useState<AgentIslandMascotSkin>(getAgentIslandMascotSkin);
+  const [appearance, setAppearanceState] = useState<AgentIslandAppearance>(getAgentIslandAppearance);
   const [displayTarget, setDisplayTargetState] = useState<AgentIslandDisplayTarget>(getAgentIslandDisplayTarget);
   const [displayOptions, setDisplayOptionsState] = useState<AgentIslandDisplayOption[]>([]);
   const supported = isAgentIslandSupported();
@@ -633,6 +701,7 @@ export function useAgentIslandSettings(): {
       setSoundSettingsState(getAgentIslandSoundSettings());
       setSoundCustomizedState(isAgentIslandSoundSettingsCustomized());
       setMascotSkinState(getAgentIslandMascotSkin());
+      setAppearanceState(getAgentIslandAppearance());
       setDisplayTargetState(getAgentIslandDisplayTarget());
     };
     return subscribeAgentIslandSettings(onChange);
@@ -653,12 +722,14 @@ export function useAgentIslandSettings(): {
     soundSettings,
     soundCustomized,
     mascotSkin,
+    appearance,
     displayTarget,
     displayOptions,
     setSoundEnabled,
     setSound,
     resetSoundSettings,
     setMascotSkin,
+    setAppearance: setAgentIslandAppearance,
     setDisplayTarget,
     previewSound,
     selectSoundFile,

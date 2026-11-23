@@ -228,6 +228,73 @@ export const DEFAULT_AGENT_ISLAND_MASCOT_SKIN: AgentIslandMascotSkin = 'cindy';
 export const DEFAULT_AGENT_ISLAND_DISPLAY_TARGET: AgentIslandDisplayTarget = { mode: 'all' };
 export const AGENT_ISLAND_MIN_DARWIN_MAJOR = 23; // macOS 14 Sonoma.
 
+/**
+ * Agent Notch silhouette: `notch` hangs from the top edge (the original look);
+ * `capsule` is a floating stadium whose height and top gap the user sets.
+ */
+export type AgentIslandShapeStyle = 'notch' | 'capsule';
+export const AGENT_ISLAND_SHAPE_STYLES: readonly AgentIslandShapeStyle[] = ['notch', 'capsule'];
+
+export interface AgentIslandAppearance {
+  shapeStyle: AgentIslandShapeStyle;
+  /** Collapsed capsule height in points; only used by the `capsule` style. */
+  capsuleHeight: number;
+  /** Gap between the screen's top edge and the capsule, in points; `capsule` only. */
+  capsuleTopGap: number;
+  /** Whether the collapsed island shows the task title and its progress detail. */
+  compactTitleVisible: boolean;
+}
+
+export const AGENT_ISLAND_CAPSULE_HEIGHT_RANGE = { min: 18, max: 60, step: 1 } as const;
+export const AGENT_ISLAND_CAPSULE_TOP_GAP_RANGE = { min: 0, max: 32, step: 1 } as const;
+
+export const DEFAULT_AGENT_ISLAND_APPEARANCE: AgentIslandAppearance = {
+  shapeStyle: 'notch',
+  capsuleHeight: 32,
+  capsuleTopGap: 6,
+  compactTitleVisible: true,
+};
+
+export function isAgentIslandShapeStyle(value: unknown): value is AgentIslandShapeStyle {
+  return typeof value === 'string' && (AGENT_ISLAND_SHAPE_STYLES as readonly string[]).includes(value);
+}
+
+function isInAgentIslandRange(value: unknown, range: { min: number; max: number }): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= range.min && value <= range.max;
+}
+
+/**
+ * Keeps only the valid fields of a stored or received appearance value. Local storage keeps
+ * just the fields the user changed, so a missing field means "not customized".
+ */
+export function pickAgentIslandAppearanceOverrides(value: unknown): Partial<AgentIslandAppearance> {
+  if (typeof value !== 'object' || value === null) return {};
+  const record = value as Record<string, unknown>;
+  const overrides: Partial<AgentIslandAppearance> = {};
+  if (isAgentIslandShapeStyle(record.shapeStyle)) overrides.shapeStyle = record.shapeStyle;
+  if (isInAgentIslandRange(record.capsuleHeight, AGENT_ISLAND_CAPSULE_HEIGHT_RANGE)) {
+    overrides.capsuleHeight = record.capsuleHeight;
+  }
+  if (isInAgentIslandRange(record.capsuleTopGap, AGENT_ISLAND_CAPSULE_TOP_GAP_RANGE)) {
+    overrides.capsuleTopGap = record.capsuleTopGap;
+  }
+  if (typeof record.compactTitleVisible === 'boolean') overrides.compactTitleVisible = record.compactTitleVisible;
+  return overrides;
+}
+
+/** Strict check for values crossing IPC: every field present and in range. */
+export function isAgentIslandAppearance(value: unknown): value is AgentIslandAppearance {
+  return Object.keys(pickAgentIslandAppearanceOverrides(value)).length
+    === Object.keys(DEFAULT_AGENT_ISLAND_APPEARANCE).length;
+}
+
+export function sameAgentIslandAppearance(a: AgentIslandAppearance, b: AgentIslandAppearance): boolean {
+  return a.shapeStyle === b.shapeStyle
+    && a.capsuleHeight === b.capsuleHeight
+    && a.capsuleTopGap === b.capsuleTopGap
+    && a.compactTitleVisible === b.compactTitleVisible;
+}
+
 export function isAgentIslandSupportedPlatform(
   platform: string | undefined,
   osRelease: string | null | undefined,
@@ -835,6 +902,8 @@ export interface AgentIslandDisplayState {
   strings: AgentIslandStrings;
   soundSettings: AgentIslandSoundSettings;
   mascotSkin: AgentIslandMascotSkin;
+  /** Silhouette and collapsed-title settings; absent means the defaults (notch, title shown). */
+  appearance?: AgentIslandAppearance;
   updatedAt: number;
 }
 
@@ -898,6 +967,8 @@ export const AGENT_ISLAND_CONSUME_ENTRY_ALERT_CHANNEL = 'agent-island:consume-en
 export const AGENT_ISLAND_SET_ENABLED_CHANNEL = 'agent-island:set-enabled';
 export const AGENT_ISLAND_SET_SOUND_SETTINGS_CHANNEL = 'agent-island:set-sound-settings';
 export const AGENT_ISLAND_SET_MASCOT_SKIN_CHANNEL = 'agent-island:set-mascot-skin';
+/** Local main-window setting only (silhouette, capsule size, collapsed title); never relayed. */
+export const AGENT_ISLAND_SET_APPEARANCE_CHANNEL = 'agent-island:set-appearance';
 /** Show task status as a macOS Live Activity (system Dynamic Island / menu bar). */
 export const AGENT_ISLAND_SET_LIVE_ACTIVITY_CHANNEL = 'agent-island:set-live-activity';
 export const AGENT_ISLAND_GET_LIVE_ACTIVITY_SUPPORT_CHANNEL = 'agent-island:get-live-activity-support';
