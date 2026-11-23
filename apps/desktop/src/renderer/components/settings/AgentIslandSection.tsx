@@ -40,6 +40,7 @@ import pululuPreviewUrl from '@/assets/agent-island-pululu.svg?url';
 import tararaPreviewUrl from '@/assets/agent-island-tarara.png?url';
 import whitesnowPreviewUrl from '@/assets/agent-island-whitesnow.png?url';
 import {
+  AGENT_ISLAND_CAPSULE_CENTER_GAP_RANGE,
   AGENT_ISLAND_CAPSULE_HEIGHT_RANGE,
   AGENT_ISLAND_CAPSULE_TOP_GAP_RANGE,
   AGENT_ISLAND_MASCOT_SKINS,
@@ -388,7 +389,8 @@ export function AgentIslandSection() {
                 />
               </SettingsField>
               {appearance.shapeStyle === 'capsule' && (
-                <>
+                // Three sizes share one row so the capsule can be tuned while watching it.
+                <SettingsBlock className="grid grid-cols-3 gap-5">
                   <AgentIslandCapsuleSlider
                     title={<span id={agentIslandSettings.capsuleHeightLabel.targetId}>{t(agentIslandSettings.capsuleHeightLabel.titleKey)}</span>}
                     settingId={agentIslandSettings.capsuleHeightLabel.id}
@@ -405,7 +407,15 @@ export function AgentIslandSection() {
                     value={appearance.capsuleTopGap}
                     onCommit={(capsuleTopGap) => void handleAppearanceChange({ capsuleTopGap })}
                   />
-                </>
+                  <AgentIslandCapsuleSlider
+                    title={<span id={agentIslandSettings.capsuleCenterGapLabel.targetId}>{t(agentIslandSettings.capsuleCenterGapLabel.titleKey)}</span>}
+                    settingId={agentIslandSettings.capsuleCenterGapLabel.id}
+                    label={t(agentIslandSettings.capsuleCenterGapLabel.titleKey)}
+                    range={AGENT_ISLAND_CAPSULE_CENTER_GAP_RANGE}
+                    value={appearance.capsuleCenterGap}
+                    onCommit={(capsuleCenterGap) => void handleAppearanceChange({ capsuleCenterGap })}
+                  />
+                </SettingsBlock>
               )}
               <SettingsRow
                 title={<span id={agentIslandSettings.compactTitleLabel.targetId}>{t(agentIslandSettings.compactTitleLabel.titleKey)}</span>}
@@ -880,25 +890,26 @@ function AgentIslandCapsuleSlider({
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
   return (
-    <SettingsField title={title}>
-      <div className="flex items-center gap-3">
-        <Slider data-setting-id={settingId}
-          min={range.min}
-          max={range.max}
-          step={range.step}
-          value={[draft]}
-          onValueChange={([next]) => {
-            if (typeof next === 'number') setDraft(next);
-          }}
-          onValueCommit={([next]) => {
-            if (typeof next === 'number' && next !== value) onCommit(next);
-          }}
-          aria-label={label}
-        />
-        <span className="w-12 shrink-0 text-right text-13 tabular-nums text-[var(--text-secondary)]">
+    <div className="flex min-w-0 flex-col gap-3">
+      <div className="flex min-w-0 items-baseline justify-between gap-2 text-13 leading-[1.5]">
+        <span className="min-w-0 font-medium text-[var(--settings-section-sublabel)] [overflow-wrap:anywhere]">{title}</span>
+        <span className="shrink-0 tabular-nums text-[var(--text-secondary)]">
           {t('settings.agentIsland.capsuleSizeValue', { value: draft })}
         </span>
       </div>
-    </SettingsField>
+      <Slider data-setting-id={settingId}
+        min={range.min}
+        max={range.max}
+        step={range.step}
+        value={[draft]}
+        onValueChange={([next]) => {
+          if (typeof next === 'number') setDraft(next);
+        }}
+        onValueCommit={([next]) => {
+          if (typeof next === 'number' && next !== value) onCommit(next);
+        }}
+        aria-label={label}
+      />
+    </div>
   );
 }

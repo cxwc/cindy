@@ -258,3 +258,18 @@
     高度 60 / 离顶 32 与高度 18 都正常；刘海样式在刘海屏上与改动前一致。
   - 原生拖动回归在刘海样式 / 椭圆 / 椭圆 + 隐藏标题 / 椭圆 + 留空 120 四种外观下各 13 个场景通过（临时补参数的副本）。
 - 限制：设置页滑杆在任务 6 接入；实屏效果待任务 6 后验收。
+
+### 任务 6：设置页「中间留空」滑杆、三滑杆同一行与文案（已完成）
+
+- 改动：
+  - `AgentIslandSection.tsx`：选椭圆时，「胶囊高度」「离顶距离」「中间留空」三个滑杆排成一行（三等分，名称左、当前值右、滑杆在下），
+    仍是拖动时只更新数字、松手保存一次。
+  - 设置搜索登记「中间留空」（仅椭圆时可搜到，别名含刘海 / 挖孔 / notch / camera）。
+  - 12 种语言新增「中间留空」，并更新「胶囊样式」说明，写明留空的用途。
+  - 单页 UI 验证 fixture `agent-island-settings` 新增 `capsule` 场景（椭圆 + 留空 80）。
+- 验证：
+  - renderer 类型检查、`check:i18n`、`check:i18n-glossary`、设置搜索 guard、`check:test-hygiene`、`check:dev-docs` 通过；
+    `pnpm test:unit:related` 通过（apps/desktop unit，290.0s）。
+  - `pnpm ui:check --page agent-island-settings --case all --theme all`：6/6 通过，目检浅色 / 深色下三滑杆同一行、数值与滑块位置正确；
+    `--case capsule --locale all`：12/12 通过，最长的德语标题也在一行内。
+- 限制：只检查了 900px 宽的设置窗口；更窄的窗口里三列会变窄，长语言的滑杆名称可能换行（`overflow-wrap` 兜底）。实屏效果待用户验收。

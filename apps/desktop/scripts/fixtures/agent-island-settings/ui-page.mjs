@@ -7,6 +7,7 @@ export default {
   cases: {
     default: { about: 'Existing automatic cards remain the default' },
     subtle: { about: 'Subtle reminders enabled' },
+    capsule: { about: 'Floating capsule style: three size sliders share one row' },
   },
   async check(page, ui) {
     const toggle = page.getByRole('switch', { name: await ui.t('settings.agentIsland.subtleRemindersLabel'), exact: true });

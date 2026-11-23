@@ -104,6 +104,16 @@ export const agentIslandSettings = defineSettings({
     titleKey: 'settings.agentIsland.capsuleTopGapLabel',
     sectionKey: 'settings.tabs.agentIsland',
   },
+  capsuleCenterGapLabel: {
+    isVisible: areCapsuleControlsVisible,
+    id: 'settings.agentIsland.capsuleCenterGapLabel',
+    fallbackTargetId: 'settings-panel-agent-island',
+    tab: 'agent-island',
+    targetId: 'settings-search-settings-agentIsland-capsuleCenterGapLabel',
+    titleKey: 'settings.agentIsland.capsuleCenterGapLabel',
+    sectionKey: 'settings.tabs.agentIsland',
+    aliases: ['刘海', '挖孔', 'notch', 'camera'],
+  },
   compactTitleLabel: {
     isVisible: areIslandControlsVisible,
     id: 'settings.agentIsland.compactTitleLabel',
